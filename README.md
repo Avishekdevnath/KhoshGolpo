@@ -8,6 +8,24 @@ Combined repository for the KhoshGolpo discussion platform. The project is split
 
 There is no root `package.json`; each workspace manages its own dependencies.
 
+## First-Time Repository Setup
+
+```bash
+git clone <repo-url> khoshgolpo
+cd khoshgolpo
+git config advice.addEmbeddedRepo false  # optional, keeps git quiet about nested folders
+```
+
+- Each workspace (`backend/`, `frontend/`) has its **own** `package.json` and `.gitignore`.
+- Do **not** run `git init` inside `backend/` or `frontend/`; the monorepo is tracked from the root.
+- If you accidentally added `node_modules` to version control, clean it up once with:
+
+  ```bash
+  git rm -r --cached node_modules prisma/node_modules
+  ```
+
+  After that, the ignores in the root and workspace `.gitignore` files will keep dependencies out of Git.
+
 ## Prerequisites
 
 - Node.js 20+
@@ -62,6 +80,12 @@ Run the following **inside** each workspace:
 | frontend | `npm run build` | Production build |
 | frontend | `npm run lint` | ESLint checks |
 
+## Maintainer Tips
+
+- Keep `.env` files out of source control. Use the templates in `guide/environment_templates.md` instead.
+- When sharing workspace-specific scripts or commands, place them under the relevant `backend/` or `frontend/` README.
+- Run linting/tests per workspace before pushing (`npm run lint`, `npm run test`, etc.).
+
 ## Repository Structure
 
 ```
@@ -82,9 +106,10 @@ README.md
 
 1. Branch from `main`.
 2. Install dependencies and make changes inside the relevant workspace.
-3. Run lint/tests (`npm run lint`, `npm run test`, etc.).
-4. Commit with a clear message (see below).
-5. Open a pull request summarising the change.
+3. Ensure `node_modules/` folders remain untracked (`git status` should be clean).
+4. Run lint/tests (`npm run lint`, `npm run test`, etc.).
+5. Commit with a clear message (see below).
+6. Open a pull request summarising the change.
 
 ## Suggested First Commit Message
 
