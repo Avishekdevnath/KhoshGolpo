@@ -1,0 +1,7 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.log
+guide/Programming Hero - Job Task Assessment for Web Developer Position (Internal) (1).pdf
+

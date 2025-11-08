@@ -1,0 +1,40 @@
+# Dependency folders
+node_modules/
+
+# Build artifacts
+.next/
+dist/
+coverage/
+
+# Environment & local configs
+/.env*
+/.env
+*.local
+
+# Workspace env files
+backend/.env
+backend/.env.*
+backend/.env.local
+
+frontend/.env
+frontend/.env.*
+frontend/.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# Local-only documentation
+guide/
+backend/guide/
+frontend/guide/

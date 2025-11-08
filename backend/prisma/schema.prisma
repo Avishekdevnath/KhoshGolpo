@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGO_URI")
+}
+
+model User {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  email         String         @unique
+  passwordHash  String
+  handle        String         @unique
+  displayName   String
+  roles         String[]       @default(["member"])
+  emailVerifiedAt DateTime?
+  lastActiveAt  DateTime?      @map("lastActiveAt")
+  status        UserStatus     @default(active)
+  bannedAt      DateTime?
+  bannedReason  String?
+  bannedBy      String?        @db.ObjectId
+  threadsCount  Int            @default(0)
+  postsCount    Int            @default(0)
+  refreshTokens RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  threads Thread[] @relation("UserThreads")
+  posts   Post[]   @relation("UserPosts")
+  auditLogs  AdminAudit[] @relation("UserAdminAudit")
+}
+
+model RefreshToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  tokenId   String   @unique
+  tokenHash String
+  issuedAt  DateTime
+  expiresAt DateTime
+  userId    String   @db.ObjectId
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Thread {
+  id                String       @id @default(auto()) @map("_id") @db.ObjectId
+  title             String
+  slug              String       @unique
+  authorId          String       @db.ObjectId
+  tags              String[]     @default([])
+  status            ThreadStatus @default(open)
+  lastActivityAt    DateTime     @default(now()) @map("lastActivityAt")
+  postsCount        Int          @default(0)
+  participantsCount Int          @default(0)
+  participantIds    String[]     @default([])
+  summary           String?
+  summaryGeneratedAt DateTime?   @map("summaryGeneratedAt")
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  author User   @relation("UserThreads", fields: [authorId], references: [id])
+  posts  Post[]
+
+  @@index([lastActivityAt])
+  @@index([status, lastActivityAt])
+}
+
+enum ThreadStatus {
+  open
+  locked
+  archived
+}
+
+model Post {
+  id                 String          @id @default(auto()) @map("_id") @db.ObjectId
+  threadId           String          @db.ObjectId
+  authorId           String          @db.ObjectId
+  body               String
+  mentions           String[]        @default([])
+  parentPostId       String?         @map("parentPostId") @db.ObjectId
+  moderationState    ModerationState @default(approved)
+  moderationFeedback String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User   @relation("UserPosts", fields: [authorId], references: [id])
+
+  @@index([threadId, createdAt])
+}
+
+enum ModerationState {
+  pending
+  approved
+  flagged
+  rejected
+}
+
+enum UserStatus {
+  active
+  suspended
+  banned
+}
+
+model AdminAudit {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId    String   @db.ObjectId
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor User @relation("UserAdminAudit", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId, createdAt])
+  @@index([resource, createdAt])
+}
+
+model SecurityEvent {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  type       String
+  userId     String?  @db.ObjectId
+  ip         String?
+  userAgent  String?
+  endpoint   String?
+  details    Json?
+  severity   String   @default("info")
+  createdAt  DateTime @default(now())
+  status     String   @default("open")
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@index([status, createdAt])
+}
+
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  event     String
+  payload   Json
+  read      Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+model EmailVerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  tokenId    String   @unique
+  tokenHash  String
+  userId     String   @db.ObjectId
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
