@@ -44,7 +44,7 @@ JWT_EXPIRES_IN=15m
 REFRESH_TOKEN_EXPIRES_IN=7d
 ```
 
-See `guide/environment_templates.md` for a complete template.
+Refer to the shared environment template distributed with the project for a complete example.
 
 ## Prisma Workflow
 
@@ -77,7 +77,7 @@ See `guide/environment_templates.md` for a complete template.
 - `src/common/` – Decorators, guards, shared utilities
 - `src/prisma/` – Prisma module/service integration
 
-Detailed workflow notes live in `guide/backend_guide.md`.
+Detailed workflow notes live in the internal documentation shared with the team.
 
 ## Testing
 

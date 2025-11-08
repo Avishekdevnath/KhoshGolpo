@@ -20,7 +20,7 @@ Create `frontend/.env.local` if you need to override defaults. Common entries:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 ```
 
-See `guide/environment_templates.md` for additional variables shared with the backend.
+Consult the shared environment template distributed with the project for additional variables used by the backend.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

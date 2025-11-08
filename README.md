@@ -4,7 +4,6 @@ Combined repository for the KhoshGolpo discussion platform. The project is split
 
 - `backend/` – NestJS + Prisma API for authentication and thread/post management.
 - `frontend/` – Next.js application that consumes the backend.
-- `guide/` – Project notes, templates, and internal documentation.
 
 There is no root `package.json`; each workspace manages its own dependencies.
 
@@ -40,7 +39,7 @@ git config advice.addEmbeddedRepo false  # optional, keeps git quiet about neste
 cd backend
 npm install
 
-# Configure environment variables (see guide/environment_templates.md)
+# Configure environment variables (see the shared environment template)
 touch .env             # create if it does not exist
 # populate the required keys before starting the server
 
@@ -62,10 +61,10 @@ The frontend runs on `http://localhost:3000` and talks to the backend via `NEXT_
 
 ## Environment Configuration
 
-- Start with the templates in `guide/environment_templates.md`.
+- Start with the environment template provided alongside the project documentation.
 - Backend expects `MONGO_URI`, JWT secrets, and `FRONTEND_URL`.
 - Frontend can point to the API with `NEXT_PUBLIC_API_BASE_URL`.
-- Additional Prisma/NestJS guidance is documented in `guide/backend_guide.md`.
+- Contact the maintainer for additional Prisma/NestJS guidance if needed.
 
 ## Useful Scripts
 
@@ -82,7 +81,7 @@ Run the following **inside** each workspace:
 
 ## Maintainer Tips
 
-- Keep `.env` files out of source control. Use the templates in `guide/environment_templates.md` instead.
+- Keep `.env` files out of source control. Use the provided environment templates instead.
 - When sharing workspace-specific scripts or commands, place them under the relevant `backend/` or `frontend/` README.
 - Run linting/tests per workspace before pushing (`npm run lint`, `npm run test`, etc.).
 
@@ -91,16 +90,9 @@ Run the following **inside** each workspace:
 ```
 backend/    # NestJS + Prisma API
 frontend/   # Next.js UI
-guide/      # Project documentation and templates
 .gitignore
 README.md
 ```
-
-## Documentation
-
-- `guide/backend_guide.md` – Detailed backend setup & troubleshooting.
-- `guide/prisma/` – Prisma integration references.
-- `guide/environment_templates.md` – Environment variable templates.
 
 ## Contribution Flow
 
