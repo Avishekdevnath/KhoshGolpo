@@ -17,9 +17,9 @@ COPY src ./src
 COPY scripts ./scripts
 
 # Build and generate Prisma client
+RUN npm run prisma:generate
 RUN npm run build
 RUN npm prune --omit=dev
-RUN npm run prisma:generate
 
 # ---- Runner stage ----
 FROM node:20-alpine AS runner
