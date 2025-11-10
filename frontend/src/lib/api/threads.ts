@@ -7,9 +7,12 @@ export interface Thread {
   authorId: string;
   tags: string[];
   status: 'open' | 'locked' | 'archived';
+  summary?: string | null;
+  summaryGeneratedAt?: string | null;
   lastActivityAt: string;
   postsCount: number;
   participantsCount: number;
+  participantIds: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -19,9 +22,10 @@ export interface Post {
   threadId: string;
   authorId: string;
   body: string;
-  parentPostId: string | null;
-  moderationState: string;
-  moderationFeedback: string | null;
+  mentions: string[];
+  parentPostId?: string | null;
+  moderationState: 'pending' | 'approved' | 'flagged' | 'rejected';
+  moderationFeedback?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -60,6 +64,7 @@ export interface ListThreadsQuery {
   page?: number;
   limit?: number;
   status?: 'open' | 'locked' | 'archived';
+  search?: string;
 }
 
 export async function listThreads(
@@ -70,6 +75,7 @@ export async function listThreads(
   if (query.page) params.set('page', String(query.page));
   if (query.limit) params.set('limit', String(query.limit));
   if (query.status) params.set('status', query.status);
+  if (query.search) params.set('search', query.search);
 
   const queryString = params.toString();
   const path = `/threads${queryString ? `?${queryString}` : ''}`;

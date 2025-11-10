@@ -9,10 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/ui/form-message';
-import { useAuth } from '@/lib/auth/hooks';
-import { createThread } from '@/lib/api/threads';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { getErrorMessage } from '@/lib/utils/error';
+import { useCreateThread } from '@/lib/api/hooks/threads';
 
 const createThreadSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters').max(150, 'Title must be at most 150 characters'),
@@ -28,7 +28,7 @@ interface CreateThreadModalProps {
 }
 
 export function CreateThreadModal({ isOpen, onClose }: CreateThreadModalProps) {
-  const { accessToken } = useAuth();
+  const createThread = useCreateThread();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -44,11 +44,6 @@ export function CreateThreadModal({ isOpen, onClose }: CreateThreadModalProps) {
   if (!isOpen) return null;
 
   const onSubmit = async (data: CreateThreadFormData) => {
-    if (!accessToken) {
-      toast.error('You must be logged in to create a thread');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -59,14 +54,11 @@ export function CreateThreadModal({ isOpen, onClose }: CreateThreadModalProps) {
             .filter(Boolean)
         : undefined;
 
-      const result = await createThread(
-        {
-          title: data.title,
-          body: data.body,
-          tags,
-        },
-        accessToken,
-      );
+      const result = await createThread({
+        title: data.title,
+        body: data.body,
+        tags,
+      });
 
       toast.success('Thread created successfully!');
       reset();
@@ -74,7 +66,7 @@ export function CreateThreadModal({ isOpen, onClose }: CreateThreadModalProps) {
       router.push(`/threads/${result.thread.id}`);
       router.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create thread';
+      const message = getErrorMessage(error, 'Failed to create thread');
       toast.error(message);
     } finally {
       setIsSubmitting(false);

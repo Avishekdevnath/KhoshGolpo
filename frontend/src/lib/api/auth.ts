@@ -7,6 +7,11 @@ export interface Profile {
   displayName: string;
   roles: string[];
   lastActiveAt?: string | null;
+  threadsCount?: number;
+  postsCount?: number;
+  status?: "active" | "suspended" | "banned";
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AuthResponse {

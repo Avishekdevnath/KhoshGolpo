@@ -23,7 +23,10 @@ import { NotificationSchema } from './notifications/schemas/notification.schema'
 import { NotificationListResponseDto } from './notifications/dto/notification-responses.dto';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    logger: false,
+  });
   app.useLogger(app.get(Logger));
 
   const configService = app.get(ConfigService);

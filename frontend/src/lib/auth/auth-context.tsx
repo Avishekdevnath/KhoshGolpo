@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type {
@@ -40,68 +41,99 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const demoAuthEnabled = appConfig.demoAuthEnabled;
+const REFRESH_FALLBACK_MS = 14 * 60 * 1000;
+const REFRESH_SKEW_MS = 30 * 1000;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+  const parts = token.split('.');
+  if (parts.length < 2) {
+    return null;
+  }
 
-function createDemoSession(identifier: string): AuthResponse {
-  const raw = identifier?.trim() || 'guest explorer';
-  const base = raw.includes('@') ? raw.split('@')[0] ?? raw : raw;
-  const compact = base.trim().replace(/\s+/g, ' ');
+  try {
+    const base64 = parts[1]!.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    if (typeof globalThis.atob !== 'function') {
+      return null;
+    }
+    const decoded = globalThis.atob(padded);
+    return JSON.parse(decoded) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
 
-  const handle =
-    compact
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'guest-explorer';
-
-  const displayName =
-    compact
-      .split(/[\s._-]+/)
-      .filter(Boolean)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ') || 'Guest Explorer';
-
-  const email = raw.includes('@') ? raw : `${handle}@demo.local`;
-
-  return {
-    accessToken: 'demo-access-token',
-    user: {
-      id: `demo-${handle}`,
-      email,
-      handle,
-      displayName,
-      roles: ['moderator'],
-      lastActiveAt: new Date().toISOString(),
-    },
-  };
-}
+const getTokenExpiry = (token: string): number | null => {
+  const payload = decodeJwtPayload(token);
+  if (!payload) {
+    return null;
+  }
+  const exp = payload.exp;
+  return typeof exp === 'number' ? exp * 1000 : null;
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<Profile | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isActionPending, setIsActionPending] = useState(false);
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const applySession = useCallback((result: AuthResponse | null) => {
-    if (!result) {
-      setUser(null);
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  }, []);
+
+  const setSessionState = useCallback((session: AuthResponse | null) => {
+    if (!session) {
       setAccessToken(null);
+      setUser(null);
       setStatus('unauthenticated');
       return;
     }
 
-    setAccessToken(result.accessToken);
-    setUser(result.user);
+    setAccessToken(session.accessToken);
+    setUser(session.user);
     setStatus('authenticated');
   }, []);
 
-  const bootstrap = useCallback(async () => {
-    if (demoAuthEnabled) {
-      applySession(null);
+  const scheduleRefresh = useCallback(
+    (token: string) => {
+      clearRefreshTimer();
+      const expiresAt = getTokenExpiry(token);
+      const now = Date.now();
+      const delay = expiresAt ? Math.max(expiresAt - now - REFRESH_SKEW_MS, 60_000) : REFRESH_FALLBACK_MS;
+
+      refreshTimerRef.current = setTimeout(async () => {
+        try {
+          const refreshed = await refreshRequest();
+          setSessionState(refreshed);
+          scheduleRefresh(refreshed.accessToken);
+        } catch (error) {
+          clearRefreshTimer();
+          setSessionState(null);
+          const message = getErrorMessage(error, 'Session expired. Please sign in again.');
+          toast.error(message);
+        }
+      }, delay);
+    },
+    [clearRefreshTimer, setSessionState],
+  );
+
+  const applySession = useCallback((result: AuthResponse | null) => {
+    if (!result) {
+      clearRefreshTimer();
+      setSessionState(null);
       return;
     }
 
+    setSessionState(result);
+    scheduleRefresh(result.accessToken);
+  }, [clearRefreshTimer, scheduleRefresh, setSessionState]);
+
+  const bootstrap = useCallback(async () => {
     try {
       const session = await refreshRequest();
       applySession(session);
@@ -112,20 +144,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void bootstrap();
-  }, [bootstrap]);
+    return () => {
+      clearRefreshTimer();
+    };
+  }, [bootstrap, clearRefreshTimer]);
 
   const login = useCallback(
     async (payload: LoginPayload) => {
       setIsActionPending(true);
       try {
-        if (demoAuthEnabled) {
-          await sleep(400);
-          const session = createDemoSession(payload.email);
-          applySession(session);
-          toast.success('Welcome back!');
-          return;
-        }
-
         const result = await loginRequest(payload);
         applySession(result);
         toast.success('Welcome back!');
@@ -145,14 +172,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (payload: RegisterPayload) => {
       setIsActionPending(true);
       try {
-        if (demoAuthEnabled) {
-          await sleep(400);
-          const session = createDemoSession(payload.email);
-          applySession(session);
-          toast.success('Account created. Welcome aboard!');
-          return;
-        }
-
         const result = await registerRequest(payload);
         applySession(result);
         toast.success('Account created. Welcome aboard!');
@@ -171,28 +190,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     setIsActionPending(true);
     try {
-      if (demoAuthEnabled) {
-        await sleep(200);
-      } else {
-        await logoutRequest();
-      }
+      await logoutRequest();
     } catch (error) {
       const message = getErrorMessage(error, 'Logout failed.');
       toast.error(message);
     } finally {
       applySession(null);
       setIsActionPending(false);
-      if (demoAuthEnabled) {
-        toast.success('Signed out.');
-      }
     }
   }, [applySession]);
 
   const refreshProfile = useCallback(async () => {
-    if (demoAuthEnabled) {
-      return;
-    }
-
     if (!accessToken) {
       await bootstrap();
       return;

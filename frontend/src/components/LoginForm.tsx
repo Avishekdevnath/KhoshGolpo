@@ -16,31 +16,9 @@ import { FormMessage } from "@/components/ui/form-message";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const identifierSchema = appConfig.demoAuthEnabled
-  ? z.string().trim().min(1, "Enter any name or email to continue.")
-  : z
-      .string()
-      .trim()
-      .min(1, "Enter your email or username.")
-      .refine(
-        (value) => {
-          if (!value) return false;
-          if (value.includes("@")) {
-            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-          }
-
-          return value.length >= 3;
-        },
-        { message: "Enter a valid email address or username." },
-      );
-
-const passwordSchema = appConfig.demoAuthEnabled
-  ? z.string().min(1, "Enter any password to continue.")
-  : z.string().min(8, "Password must be at least 8 characters.");
-
 const schema = z.object({
-  identifier: identifierSchema,
-  password: passwordSchema,
+  email: z.string().trim().min(1, "Enter your email address.").email("Enter a valid email address."),
+  password: z.string().min(8, "Password must be at least 8 characters."),
   rememberMe: z.boolean().optional(),
 });
 
@@ -63,7 +41,7 @@ export function LoginForm() {
     resetField,
   } = useForm<LoginFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { identifier: "", password: "", rememberMe: false },
+    defaultValues: { email: "", password: "", rememberMe: false },
   });
 
   useEffect(() => {
@@ -75,12 +53,12 @@ export function LoginForm() {
   }, []);
 
   const submit = useCallback(
-    async ({ identifier, password }: LoginFormValues) => {
+    async ({ email, password }: LoginFormValues) => {
       setRootError(null);
       setSuccessMessage(null);
 
       try {
-        await login({ email: identifier, password });
+        await login({ email, password });
 
         setSuccessMessage("Signed in — redirecting to the KhoshGolpo workspace.");
         resetField("password");
@@ -114,9 +92,9 @@ export function LoginForm() {
   return (
     <form className="space-y-6" onSubmit={onSubmit} noValidate>
       <div className="space-y-2">
-        <Label htmlFor="identifier">Email or username</Label>
-        <Input id="identifier" type="text" autoComplete="username" placeholder="team@khoshgolpo.com" {...register("identifier")} />
-        <FormMessage message={errors.identifier?.message} />
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" autoComplete="email" placeholder="team@khoshgolpo.com" {...register("email")} />
+        <FormMessage message={errors.email?.message} />
       </div>
 
       <div className="space-y-2">
@@ -158,9 +136,7 @@ export function LoginForm() {
           <span className="select-none uppercase tracking-[0.2em]">Remember me</span>
         </label>
 
-        <span className="uppercase tracking-[0.2em] text-slate-500">
-          Secure entry
-        </span>
+        <span className="uppercase tracking-[0.2em] text-slate-500">Secure entry</span>
       </div>
 
       {rootError && (
@@ -196,4 +172,3 @@ export function LoginForm() {
     </form>
   );
 }
-

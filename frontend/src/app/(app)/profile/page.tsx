@@ -1,227 +1,198 @@
 "use client";
 
-import { Calendar, Check, Edit3, Flame, Globe, MapPin, Settings, ShieldCheck, Users } from "lucide-react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
+import { Calendar, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { demoThreads, demoUser } from "@/data/demo";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useProfile, useUpdateProfile } from "@/lib/api/hooks/profile";
+import { formatRelativeTime } from "@/lib/utils/date";
+import { useAuth } from "@/lib/auth/hooks";
 import { cn } from "@/lib/utils";
 
-const contributions = [
-  { label: "Threads sparked", value: 42 },
-  { label: "Stories amplified", value: 186 },
-  { label: "Warm replies", value: 812 },
-  { label: "Mentions received", value: 29 },
-];
+const schema = z.object({
+  displayName: z
+    .string()
+    .trim()
+    .min(2, "Display name must be at least 2 characters.")
+    .max(80, "Display name must be at most 80 characters."),
+  handle: z
+    .string()
+    .trim()
+    .min(3, "Handle must be at least 3 characters.")
+    .max(20, "Handle must be at most 20 characters.")
+    .regex(/^[a-z0-9_.-]+$/i, "Handle can include letters, numbers, dots, underscores or dashes."),
+});
 
-const recentHighlights = demoThreads.slice(0, 3);
+type ProfileFormValues = z.infer<typeof schema>;
 
 export default function ProfilePage() {
+  const { data: profile, isLoading, error, mutateRemote } = useProfile();
+  const updateProfile = useUpdateProfile();
+  const { user } = useAuth();
+
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      displayName: "",
+      handle: "",
+    },
+  });
+
+  useEffect(() => {
+    if (profile) {
+      form.reset({
+        displayName: profile.displayName ?? "",
+        handle: profile.handle ?? "",
+      });
+    }
+  }, [form, profile]);
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    const payload: ProfileFormValues = {
+      displayName: values.displayName.trim(),
+      handle: values.handle.trim(),
+    };
+
+    try {
+      await updateProfile(payload);
+      await mutateRemote();
+      toast.success("Profile updated.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to update profile right now.");
+    }
+  });
+
+  const stats = [
+    {
+      label: "Threads sparked",
+      value: profile?.threadsCount ?? 0,
+    },
+    {
+      label: "Posts shared",
+      value: profile?.postsCount ?? 0,
+    },
+    {
+      label: "Roles",
+      value: profile?.roles?.join(", ") ?? "member",
+    },
+    {
+      label: "Status",
+      value: profile?.status ?? "active",
+    },
+  ];
+
   return (
-    <div className="space-y-8 text-slate-700 transition-colors dark:text-slate-200">
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <Card className="flex-1 p-0">
-          <div className="space-y-6 p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
+    <div className="space-y-8 text-slate-200">
+      <Card className="border border-slate-800/70 bg-slate-950/70">
+        <div className="grid gap-6 p-6 lg:grid-cols-[1.2fr_1fr]">
+          <div className="space-y-6">
+            <div className="flex flex-col gap-3">
+              <div className="inline-flex items-center gap-3">
                 <div
                   className={cn(
-                    "flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br text-2xl font-semibold text-white shadow-lg shadow-slate-200/50 dark:shadow-slate-900/70",
-                    demoUser.avatarColor,
+                    "flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-xl font-semibold text-white shadow-lg shadow-sky-500/40",
                   )}
                 >
-                  {demoUser.name
+                  {(profile?.displayName ?? user?.displayName ?? "KG")
                     .split(" ")
-                    .map((n) => n[0])
+                    .map((part) => part[0])
                     .join("")
-                    .slice(0, 2)}
+                    .slice(0, 2)
+                    .toUpperCase()}
                 </div>
                 <div>
-                  <div className="flex items-center gap-3">
-                    <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{demoUser.name}</h1>
-                    <span className="rounded-full border border-emerald-400/50 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-200">
-                      Warmth moderator
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">@{demoUser.handle}</p>
+                  <h1 className="text-2xl font-semibold text-white">{profile?.displayName ?? user?.displayName ?? "Member"}</h1>
+                  <p className="text-sm text-slate-400">@{profile?.handle ?? user?.handle}</p>
+                </div>
+                <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-emerald-400/50 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">
+                  <ShieldCheck className="size-3" />
+                  {profile?.roles?.[0] ?? "member"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Joined {profile?.createdAt ? formatRelativeTime(profile.createdAt) : "recently"} • Last active{" "}
+                {profile?.lastActiveAt ? formatRelativeTime(profile.lastActiveAt) : "moments ago"}
+              </p>
+            </div>
+
+            {error && (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {error instanceof Error ? error.message : "Unable to load profile details right now."}
+              </div>
+            )}
+
+            {isLoading && (
+              <div className="text-sm text-slate-400">Loading profile details…</div>
+            )}
+
+            <form className="space-y-5" onSubmit={onSubmit}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="displayName">Display name</Label>
+                  <Input
+                    id="displayName"
+                    {...form.register("displayName")}
+                    placeholder="Your name"
+                    className="border-slate-800/70 bg-slate-900/70 text-slate-200 placeholder:text-slate-500"
+                  />
+                  {form.formState.errors.displayName && (
+                    <p className="text-xs text-red-300">{form.formState.errors.displayName.message}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="handle">Handle</Label>
+                  <Input
+                    id="handle"
+                    {...form.register("handle")}
+                    placeholder="handle"
+                    className="border-slate-800/70 bg-slate-900/70 text-slate-200 placeholder:text-slate-500"
+                  />
+                  {form.formState.errors.handle && (
+                    <p className="text-xs text-red-300">{form.formState.errors.handle.message}</p>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  className="rounded-xl border border-slate-200/70 bg-white/80 text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-slate-800/80 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:border-slate-700"
-                >
-                  <ShieldCheck className="mr-2 size-4 text-emerald-500 dark:text-emerald-300" />
-                  Manage access
-                </Button>
-                <Button className="rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/30 hover:from-sky-400 hover:to-indigo-500">
-                  <Edit3 className="mr-2 size-4" />
-                  Edit profile
-                </Button>
-              </div>
-            </div>
-
-            <p className="text-sm text-slate-600 dark:text-slate-300">{demoUser.bio}</p>
-
-            <div className="grid gap-4 text-sm text-slate-500 dark:text-slate-400 sm:grid-cols-2">
-              <div className="flex items-center gap-2">
-                <MapPin className="size-4 text-slate-400" />
-                {demoUser.location}
-              </div>
-              <div className="flex items-center gap-2">
-                <Globe className="size-4 text-slate-400" />
-                Timezone: GMT+6
-              </div>
-              <div className="flex items-center gap-2">
-                <Users className="size-4 text-slate-400" />
-                Mentor circles every Thursday
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="size-4 text-slate-400" />
-                Joined in March 2024
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="w-full max-w-sm p-0">
-          <div className="space-y-6 p-6">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">Notification preferences</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Fine tune how you’re nudged when warmth needs a human touch.</p>
-            </div>
-            <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
-              <label className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white/80 px-3 py-3 dark:border-slate-800/70 dark:bg-slate-900/70">
-                Email digests
-                <span className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600 dark:text-emerald-200">On</span>
-              </label>
-              <label className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white/80 px-3 py-3 dark:border-slate-800/70 dark:bg-slate-900/70">
-                Late-night escalations
-                <span className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">Muted</span>
-              </label>
-              <label className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white/80 px-3 py-3 dark:border-slate-800/70 dark:bg-slate-900/70">
-                Empathy prompt recaps
-                <span className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600 dark:text-emerald-200">On</span>
-              </label>
-            </div>
-            <Button
-              variant="ghost"
-              className="w-full rounded-xl border border-slate-200/70 bg-white/80 text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-slate-800/80 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:border-slate-700"
-            >
-              <Settings className="mr-2 size-4" />
-              Advanced settings
-            </Button>
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <Card className="p-0">
-          <div className="space-y-6 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">Stories amplified this week</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Celebrate highlights you’ve nurtured recently.</p>
-              </div>
               <Button
-                variant="ghost"
-                className="rounded-xl border border-slate-200/70 bg-white/80 text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-slate-800/70 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:border-slate-700"
+                type="submit"
+                className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-sm font-semibold uppercase tracking-[0.22em] text-white shadow-lg shadow-emerald-500/30 hover:from-emerald-400 hover:to-teal-500"
+                disabled={form.formState.isSubmitting}
               >
-                Export recap
+                {form.formState.isSubmitting ? "Saving…" : "Save changes"}
               </Button>
+            </form>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <p className="text-sm font-semibold text-white">Account snapshot</p>
+              <p className="text-xs text-slate-400">Quick metrics that help you track your warmth footprint.</p>
             </div>
-            <div className="space-y-4">
-              {recentHighlights.map((thread) => (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {stats.map((item) => (
                 <div
-                  key={thread.id}
-                  className="rounded-2xl border border-slate-200/70 bg-white/80 p-4 text-slate-600 shadow-sm dark:border-slate-800/70 dark:bg-slate-950/60 dark:text-slate-300"
+                  key={item.label}
+                  className="rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-5 text-center shadow-inner shadow-slate-900/60"
                 >
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-500">
-                      <span>{thread.category}</span>
-                      <span>•</span>
-                      <span>{thread.createdAt}</span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{thread.title}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{thread.summary}</p>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-500">
-                      <span>{thread.replies} replies</span>
-                      <span>•</span>
-                      <span>{thread.views} views</span>
-                    </div>
-                  </div>
+                  <p className="text-2xl font-semibold text-white">{item.value}</p>
+                  <p className="mt-2 text-xs uppercase tracking-widest text-slate-400">{item.label}</p>
                 </div>
               ))}
             </div>
-          </div>
-        </Card>
-
-        <Card className="p-0">
-          <div className="space-y-6 p-6">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">Add a warmth note</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Capture a reflection about your community practice.</p>
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-4 text-xs text-slate-400">
+              <Calendar className="size-4 text-slate-500" />
+              Member since {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}
             </div>
-            <Textarea
-              rows={5}
-              placeholder="Keepers, moments, rituals..."
-              className="border-slate-200/70 bg-white/80 text-slate-700 placeholder:text-slate-400 dark:border-slate-800/70 dark:bg-slate-900/70 dark:text-slate-200 dark:placeholder:text-slate-500"
-            />
-            <Button className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30 hover:from-emerald-400 hover:to-teal-500">
-              Save note
-            </Button>
-          </div>
-        </Card>
-      </div>
-
-      <Card className="p-0">
-        <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
-          {contributions.map((item) => (
-            <div
-              key={item.label}
-              className="rounded-2xl border border-slate-200/70 bg-white/85 px-4 py-5 text-center shadow-inner shadow-slate-200/60 dark:border-slate-800/70 dark:bg-slate-950/70 dark:shadow-slate-900/60"
-            >
-              <p className="text-3xl font-semibold text-slate-900 dark:text-white">{item.value}</p>
-              <p className="mt-2 text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">{item.label}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card className="p-0">
-        <div className="space-y-6 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">Circle invitations</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Who’s asked you to bring warmth into their rooms.</p>
-            </div>
-            <Button
-              variant="ghost"
-              className="rounded-xl border border-slate-200/70 bg-white/80 text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-slate-800/70 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:border-slate-700"
-            >
-              <Flame className="mr-2 size-4 text-amber-500 dark:text-amber-400" />
-              View all
-            </Button>
-          </div>
-          <div className="grid gap-4 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2">
-            {["Onboarding storytellers", "Late-night empathy lab", "Design feedback circle", "Safety reflection hour"].map((circle) => (
-              <div
-                key={circle}
-                className="flex items-start gap-3 rounded-2xl border border-slate-200/70 bg-white/85 p-4 shadow-inner shadow-slate-200/60 dark:border-slate-800/70 dark:bg-slate-950/70 dark:shadow-slate-900/60"
-              >
-                <Check className="mt-1 size-4 text-emerald-500 dark:text-emerald-300" />
-                <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{circle}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Invited to host this week</p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </Card>
     </div>
   );
 }
-
 
