@@ -1,38 +1,54 @@
-# ---- Builder stage ----
-FROM node:20-alpine AS builder
-RUN apk upgrade --no-cache
+# Stage 1: Build
+FROM node:18-alpine AS builder
+
 WORKDIR /app
 
-ARG DATABASE_URL
-ENV DATABASE_URL=${DATABASE_URL}
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma
 
 # Install dependencies
-COPY package*.json ./
 RUN npm ci
 
-# Copy sources
-COPY nest-cli.json tsconfig*.json ./
-COPY prisma ./prisma
-COPY src ./src
-COPY scripts ./scripts
-
-# Build and generate Prisma client
+# Generate Prisma client
 RUN npm run prisma:generate
+
+# Copy source code
+COPY . .
+
+# Build the application
 RUN npm run build
-RUN npm prune --omit=dev
 
-# ---- Runner stage ----
-FROM node:20-alpine AS runner
-RUN apk upgrade --no-cache
+# Stage 2: Runtime
+FROM node:18-alpine
+
 WORKDIR /app
-ENV NODE_ENV=production
 
-COPY --from=builder /app/node_modules ./node_modules
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma
+
+# Install only production dependencies
+RUN npm ci --only=production
+
+# Generate Prisma client in runtime
+RUN npm run prisma:generate
+
+# Copy built application from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/scripts ./scripts
 
+# Expose port
 EXPOSE 4000
-CMD ["node", "dist/main.js"]
 
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:4000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start application
+CMD ["node", "dist/main.js"]
