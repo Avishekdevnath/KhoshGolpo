@@ -32,18 +32,17 @@ import { SecurityModule } from './security/security.module';
       useFactory: (configService: ConfigService) => {
         const isProd = configService.get<string>('NODE_ENV') === 'production';
         return {
-          pinoHttp: {
-            level: configService.get<string>('LOG_LEVEL') ?? 'debug',
-            transport: !isProd
-              ? {
+          pinoHttp: isProd
+            ? undefined
+            : {
+                transport: {
                   target: 'pino-pretty',
                   options: {
                     translateTime: 'SYS:standard',
                     ignore: 'pid,hostname',
                   },
-                }
-              : undefined,
-          },
+                },
+              },
         };
       },
     }),

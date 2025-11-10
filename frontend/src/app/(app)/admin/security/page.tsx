@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth/hooks";
 import { useRateLimitSummary, useSecurityEvents } from "@/lib/api/hooks/admin";
+import type { RateLimitSummary, SecurityEvent } from "@/lib/api/admin/security";
 import { formatRelativeTime } from "@/lib/utils/date";
 import { cn } from "@/lib/utils";
 
@@ -101,7 +102,7 @@ export default function SecurityPage() {
         )}
 
         <div className="divide-y divide-slate-800/60">
-          {events.map((event) => (
+          {events.map((event: SecurityEvent) => (
             <div key={event.id} className="flex flex-col gap-3 px-6 py-5 transition hover:bg-slate-900/60">
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span className="text-sm font-semibold text-white">{event.type}</span>
@@ -181,7 +182,7 @@ export default function SecurityPage() {
         )}
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {rateLimitData?.data.map((item) => (
+          {rateLimitData?.data.map((item: RateLimitSummary) => (
             <div
               key={item.key}
               className="rounded-2xl border border-slate-800/70 bg-slate-900/70 px-4 py-5 shadow-inner shadow-slate-900/60"
@@ -215,3 +216,4 @@ export default function SecurityPage() {
       </div>
     </div>
   );
+}

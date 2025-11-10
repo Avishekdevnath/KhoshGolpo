@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Bell, CheckCheck, Filter, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,16 +23,11 @@ export default function NotificationsPage() {
   const [page, setPage] = useState(1);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+  const deferredSearch = useDeferredValue(search.trim());
 
   useEffect(() => {
     setPage(1);
-  }, [showUnreadOnly, debouncedSearch]);
+  }, [showUnreadOnly, deferredSearch]);
 
   const query = useMemo(
     () => ({
@@ -43,7 +38,7 @@ export default function NotificationsPage() {
     [page, showUnreadOnly],
   );
 
-  const { data, error, isLoading, isValidating, mutate } = useNotifications(query);
+  const { data, error, isLoading, mutate } = useNotifications(query);
   const markNotificationRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
 
@@ -51,9 +46,9 @@ export default function NotificationsPage() {
   const pagination = data?.pagination;
   const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.limit)) : 1;
 
-  const filteredNotifications = debouncedSearch
+  const filteredNotifications = deferredSearch
     ? notifications.filter((notification) =>
-        JSON.stringify(notification.payload).toLowerCase().includes(debouncedSearch.toLowerCase()),
+        JSON.stringify(notification.payload).toLowerCase().includes(deferredSearch.toLowerCase()),
       )
     : notifications;
 
@@ -89,7 +84,10 @@ export default function NotificationsPage() {
               "rounded-xl border border-slate-800/80 bg-slate-900/60 text-slate-300 hover:border-slate-700",
               showUnreadOnly && "border-sky-500/60 bg-sky-500/10 text-sky-200",
             )}
-            onClick={() => setShowUnreadOnly((prev) => !prev)}
+            onClick={() => {
+              setPage(1);
+              setShowUnreadOnly((prev) => !prev);
+            }}
           >
             <Filter className="mr-2 size-4" />
             {showUnreadOnly ? "Showing unread" : "Show unread"}
@@ -111,7 +109,10 @@ export default function NotificationsPage() {
               <Input
                 placeholder="Search notifications…"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 className="border-none bg-transparent p-0 text-sm focus-visible:ring-0"
               />
               <Bell className="size-4 text-slate-500" />

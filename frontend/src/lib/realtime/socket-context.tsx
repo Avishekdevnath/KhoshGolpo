@@ -20,6 +20,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { mutate } = useSWRConfig();
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated" || !accessToken) {
@@ -28,6 +29,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         socketRef.current = null;
       }
       setIsConnected(false);
+      setSocketInstance(null);
       return;
     }
 
@@ -38,6 +40,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketRef.current = socket;
+    setSocketInstance(socket);
 
     const revalidateThreads = () => {
       void mutate((key) => Array.isArray(key) && key[0] === "threads");
@@ -75,13 +78,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       socket.off("notification.created");
       socket.disconnect();
       socketRef.current = null;
+      setSocketInstance(null);
       setIsConnected(false);
     };
   }, [accessToken, mutate, status]);
 
   const value = useMemo<SocketContextValue>(
-    () => ({ socket: socketRef.current, isConnected }),
-    [isConnected],
+    () => ({ socket: socketInstance, isConnected }),
+    [isConnected, socketInstance],
   );
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;

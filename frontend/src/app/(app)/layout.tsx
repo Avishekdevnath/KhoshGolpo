@@ -31,21 +31,22 @@ const getInitialTheme = (): ThemeMode => {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 };
 
+const getInitialSidebarCollapsed = (): boolean => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    const stored = window.localStorage.getItem(COLLAPSE_STORAGE_KEY);
+    return stored === "true";
+  } catch {
+    return false;
+  }
+};
+
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState<ThemeMode>("dark");
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(COLLAPSE_STORAGE_KEY);
-      if (stored !== null) {
-        setSidebarCollapsed(stored === "true");
-      }
-    } catch (error) {
-      console.warn("Unable to read sidebar collapse state", error);
-    }
-  }, []);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => getInitialSidebarCollapsed());
+  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
 
   useEffect(() => {
     try {
@@ -56,16 +57,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
-    setTheme(getInitialTheme());
-  }, []);
-
-  useEffect(() => {
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch (error) {
       console.warn("Unable to persist theme preference", error);
     }
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+    }
   }, [theme]);
 
   const handleToggleTheme = () => {

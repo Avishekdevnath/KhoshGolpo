@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Filter, Loader2, ShieldCheck, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,34 +15,18 @@ const USERS_PER_PAGE = 12;
 
 export default function UsersAdminPage() {
   const { user } = useAuth();
+  const isAdmin = user?.roles?.includes("admin") ?? false;
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch]);
-
-  if (user && !user.roles?.includes("admin")) {
-    return (
-      <div className="rounded-3xl border border-amber-500/40 bg-amber-500/10 px-6 py-10 text-center text-sm text-amber-200">
-        Admin access is required to manage members.
-      </div>
-    );
-  }
+  const deferredSearch = useDeferredValue(search.trim());
 
   const query = useMemo(
     () => ({
       page,
       limit: USERS_PER_PAGE,
-      query: debouncedSearch || undefined,
+      query: deferredSearch || undefined,
     }),
-    [debouncedSearch, page],
+    [deferredSearch, page],
   );
 
   const { data, isLoading, error } = useAdminUsers(query, { revalidateOnFocus: false });
@@ -107,7 +91,10 @@ export default function UsersAdminPage() {
               placeholder="Search by name, email, or handle…"
               className="border-none bg-transparent p-0 text-sm focus-visible:ring-0"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div className="text-xs text-slate-500">

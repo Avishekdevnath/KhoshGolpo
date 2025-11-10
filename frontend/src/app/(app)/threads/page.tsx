@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { AlertTriangle, Filter, Flame, Loader2, MessageCircle, Search, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,30 +24,18 @@ const THREADS_PER_PAGE = 10;
 export default function ThreadsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const deferredSearch = useDeferredValue(search.trim());
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search.trim());
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, statusFilter]);
 
   const threadsQuery = useMemo(
     () => ({
       page,
       limit: THREADS_PER_PAGE,
       status: statusFilter !== "all" ? (statusFilter as "open" | "locked" | "archived") : undefined,
-      search: debouncedSearch || undefined,
+      search: deferredSearch || undefined,
     }),
-    [debouncedSearch, page, statusFilter],
+    [deferredSearch, page, statusFilter],
   );
 
   const { data, error, isLoading, isValidating } = useThreads(threadsQuery);
@@ -95,7 +83,10 @@ export default function ThreadsPage() {
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
                 <Input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
                   placeholder="Search for threads, tags, or participants"
                   className="border-none bg-transparent pl-10 text-sm text-slate-200 placeholder:text-slate-500 focus-visible:ring-0"
                 />
@@ -114,7 +105,10 @@ export default function ThreadsPage() {
                 return (
                   <button
                     key={option}
-                    onClick={() => setStatusFilter(option)}
+                    onClick={() => {
+                      setStatusFilter(option);
+                      setPage(1);
+                    }}
                     className={cn(
                       "rounded-xl border px-3 py-1 text-xs uppercase tracking-wide transition",
                       isActive

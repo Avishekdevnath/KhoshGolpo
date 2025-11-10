@@ -60,7 +60,8 @@ export function RegisterForm() {
     },
   });
 
-  const onSubmit = handleSubmit(async ({ confirmPassword: _ignore, displayName, ...values }) => {
+  const onSubmit = handleSubmit(async (formValues) => {
+    const { confirmPassword: _confirmPassword, displayName, ...values } = formValues;
     setRootError(null);
     try {
       const payload = {

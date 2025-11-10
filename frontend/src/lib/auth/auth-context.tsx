@@ -24,7 +24,6 @@ import {
 } from '@/lib/api/auth';
 import { getErrorMessage } from '@/lib/utils/error';
 import { toast } from 'sonner';
-import { appConfig } from '@/lib/config/env';
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
