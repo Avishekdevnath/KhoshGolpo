@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useModerationMutations, useModerationPosts, useModerationThreads } from "@/lib/api/hooks/admin";
+import type { ModerationPostItem, ModerationThreadItem } from "@/lib/api/admin/moderation";
 import { formatRelativeTime } from "@/lib/utils/date";
 import { useAuth } from "@/lib/auth/hooks";
 
@@ -148,7 +149,7 @@ export default function ModerationPage() {
         )}
 
         <div className="divide-y divide-slate-800/60">
-          {moderationPosts.map((item) => (
+          {moderationPosts.map((item: ModerationPostItem) => (
             <div key={item.post.id} className="flex flex-col gap-3 px-6 py-5 transition hover:bg-slate-900/60">
               <div className="flex items-center gap-3 text-xs text-slate-500">
                 <span className="text-sm font-semibold text-white">{item.author.displayName ?? item.author.handle}</span>
@@ -240,7 +241,7 @@ export default function ModerationPage() {
         )}
 
         <div className="divide-y divide-slate-800/60">
-          {moderationThreads.map((item) => (
+          {moderationThreads.map((item: ModerationThreadItem) => (
             <div key={item.thread.id} className="flex flex-col gap-3 px-6 py-5 transition hover:bg-slate-900/60">
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
                 <span className="text-sm font-semibold text-white">{item.thread.title}</span>
