@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: khoshgolpo-api
+    env: docker
+    plan: starter
+    rootDir: backend
+    buildCommand: ""
+    startCommand: ""
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: MONGO_URI
+        valueFromSecret: DATABASE_URL
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASS
+        sync: false
+      - key: NOTIFICATION_WEBHOOK_URL
+        sync: false
+
+  - type: worker
+    name: khoshgolpo-moderation-worker
+    env: docker
+    plan: starter
+    rootDir: backend
+    buildCommand: ""
+    startCommand: npm run start:worker:moderation
+    envVarsFromPrev: khoshgolpo-api
+
+  - type: worker
+    name: khoshgolpo-notification-worker
+    env: docker
+    plan: starter
+    rootDir: backend
+    buildCommand: ""
+    startCommand: npm run start:worker:notifications
+    envVarsFromPrev: khoshgolpo-api
+

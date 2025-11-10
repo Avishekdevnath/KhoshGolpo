@@ -29,10 +29,16 @@ Create `backend/.env` with at least:
 
 ```
 PORT=4000
-MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/KhoshGolpo
-JWT_SECRET=<strong-random-string>
-REFRESH_TOKEN_SECRET=<strong-random-string>
+DATABASE_URL=mongodb+srv://<user>:<pass>@cluster.mongodb.net/KhoshGolpo
+MONGO_URI=${DATABASE_URL}
+JWT_ACCESS_SECRET=<strong-random-string>
+JWT_REFRESH_SECRET=<strong-random-string>
 FRONTEND_URL=http://localhost:3000
+OPENAI_API_KEY=<openai-api-key>
+MAIL_HOST=smtp.example.com
+MAIL_USER=example@example.com
+MAIL_PASS=<smtp-password>
+NOTIFICATION_WEBHOOK_URL=https://example.com/webhooks/notifications
 ```
 
 Optional additions:
@@ -40,6 +46,8 @@ Optional additions:
 ```
 REDIS_URL=redis://...
 REDIS_QUEUE_URL=redis://...
+SENTRY_DSN=https://example.ingest.sentry.io/1234
+LOG_LEVEL=info
 JWT_EXPIRES_IN=15m
 REFRESH_TOKEN_EXPIRES_IN=7d
 ```
@@ -90,5 +98,21 @@ npm run test:cov    # coverage report
 ## Deployment Notes
 
 - Build with `npm run build` and deploy the `dist/` folder.
-- Supply the prod `.env` values (`MONGO_URI`, JWT secrets, Redis URLs).
+- Supply the prod `.env` values (`DATABASE_URL`, JWT secrets, Redis URLs, mail/OpenAI keys).
 - Regenerate Prisma client on the target platform if you deploy from a different OS/architecture.
+
+### Render Blueprint & GitHub Actions Deployments
+
+The repo includes a `render.yaml` blueprint that provisions the API and both worker services. To use it:
+
+1. Push the repository to GitHub.
+2. In Render, choose **Blueprint → New Blueprint Instance** and select this repo/branch.
+3. After the initial deploy, fill in secrets flagged with `sync: false` (MongoDB connection string, Redis URL, JWT keys, mail credentials, OpenAI key, webhook URL).
+
+#### Automated Deployments
+
+`.github/workflows/deploy-render.yml` runs lint/tests and then triggers a Render deploy hook on pushes to `main` (or manual runs). Configure it by adding the repository secret:
+
+- `RENDER_DEPLOY_HOOK_URL` – copy from Render under **Blueprint → Settings → Deploy Hook** (or the service-level hook if managing individual services).
+
+Once set, every successful build on `main` will call the hook and Render will pull the latest commit, rebuild the Docker image, and deploy.
