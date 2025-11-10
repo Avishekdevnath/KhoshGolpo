@@ -19,17 +19,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { accessToken, status } = useAuth();
   const { mutate } = useSWRConfig();
   const socketRef = useRef<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
   const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     if (status !== "authenticated" || !accessToken) {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-      setIsConnected(false);
-      setSocketInstance(null);
       return;
     }
 
@@ -55,8 +49,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void mutate((key) => Array.isArray(key) && key[0] === "notifications");
     };
 
-    socket.on("connect", () => setIsConnected(true));
-    socket.on("disconnect", () => setIsConnected(false));
+    const handleConnected = () => setIsConnected(true);
+    const handleDisconnected = () => setIsConnected(false);
+
+    socket.on("connect", handleConnected);
+    socket.on("disconnect", handleDisconnected);
 
     socket.on("thread.created", () => {
       revalidateThreads();
@@ -76,6 +73,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       socket.off("thread.created");
       socket.off("post.created");
       socket.off("notification.created");
+      socket.off("connect", handleConnected);
+      socket.off("disconnect", handleDisconnected);
       socket.disconnect();
       socketRef.current = null;
       setSocketInstance(null);
@@ -85,7 +84,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<SocketContextValue>(
     () => ({ socket: socketInstance, isConnected }),
-    [isConnected, socketInstance],
+    [socketInstance, isConnected],
   );
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;

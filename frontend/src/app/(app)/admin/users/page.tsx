@@ -29,7 +29,10 @@ export default function UsersAdminPage() {
     [deferredSearch, page],
   );
 
-  const { data, isLoading, error } = useAdminUsers(query, { revalidateOnFocus: false });
+  const { data, isLoading, error } = useAdminUsers(query, {
+    revalidateOnFocus: false,
+    isPaused: () => !isAdmin,
+  });
   const { updateRoles, updateStatus, forceLogout } = useAdminUserMutations();
 
   const members = (data?.data ?? []) as AdminUser[];
@@ -64,6 +67,14 @@ export default function UsersAdminPage() {
       toast.error(err instanceof Error ? err.message : "Unable to force logout.");
     }
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="rounded-3xl border border-amber-500/40 bg-amber-500/10 px-6 py-10 text-center text-sm text-amber-200">
+        Admin access is required to manage members.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

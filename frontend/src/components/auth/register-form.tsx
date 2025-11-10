@@ -61,12 +61,13 @@ export function RegisterForm() {
   });
 
   const onSubmit = handleSubmit(async (formValues) => {
-    const { confirmPassword: _confirmPassword, displayName, ...values } = formValues;
     setRootError(null);
     try {
       const payload = {
-        ...values,
-        displayName: displayName?.trim() ? displayName.trim() : undefined,
+        email: formValues.email,
+        handle: formValues.handle,
+        password: formValues.password,
+        displayName: formValues.displayName?.trim() ? formValues.displayName.trim() : undefined,
       };
       await registerAccount(payload);
       router.replace(appConfig.defaultRedirect);

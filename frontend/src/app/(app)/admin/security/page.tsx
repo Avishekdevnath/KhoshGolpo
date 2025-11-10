@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertCircle, Filter, Loader2, Shield } from "lucide-react";
+import { AlertCircle, Filter, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,14 +29,7 @@ export default function SecurityPage() {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-
-  if (user && !user.roles?.includes("admin")) {
-    return (
-      <div className="rounded-3xl border border-amber-500/40 bg-amber-500/10 px-6 py-10 text-center text-sm text-amber-200">
-        Admin access is required to view security telemetry.
-      </div>
-    );
-  }
+  const isAdmin = user?.roles?.includes("admin") ?? false;
 
   const eventsQuery = useMemo(
     () => ({
@@ -47,14 +40,25 @@ export default function SecurityPage() {
     [page, search],
   );
 
-  const { data, isLoading, error } = useSecurityEvents(eventsQuery, { revalidateOnFocus: false });
+  const { data, isLoading, error } = useSecurityEvents(eventsQuery, {
+    revalidateOnFocus: false,
+    isPaused: () => !isAdmin,
+  });
   const { data: rateLimitData, isLoading: isLoadingRateLimit } = useRateLimitSummary(
     { groupBy: "endpoint", windowMinutes: 60 },
-    { revalidateOnFocus: false },
+    { revalidateOnFocus: false, isPaused: () => !isAdmin },
   );
 
   const events = data?.data ?? [];
   const pagination = data?.pagination;
+
+  if (!isAdmin) {
+    return (
+      <div className="rounded-3xl border border-amber-500/40 bg-amber-500/10 px-6 py-10 text-center text-sm text-amber-200">
+        Admin access is required to view security telemetry.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -82,7 +86,10 @@ export default function SecurityPage() {
               placeholder="Filter by endpoint or pattern…"
               className="border-none bg-transparent p-0 text-sm focus-visible:ring-0"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div className="text-xs text-slate-500">{pagination ? `${pagination.total} events` : null}</div>

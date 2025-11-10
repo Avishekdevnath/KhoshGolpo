@@ -25,10 +25,6 @@ export default function NotificationsPage() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
 
-  useEffect(() => {
-    setPage(1);
-  }, [showUnreadOnly, deferredSearch]);
-
   const query = useMemo(
     () => ({
       page,
