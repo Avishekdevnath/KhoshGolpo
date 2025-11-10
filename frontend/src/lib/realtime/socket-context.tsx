@@ -34,7 +34,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketRef.current = socket;
-    setSocketInstance(socket);
 
     const revalidateThreads = () => {
       void mutate((key) => Array.isArray(key) && key[0] === "threads");
@@ -49,8 +48,15 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void mutate((key) => Array.isArray(key) && key[0] === "notifications");
     };
 
-    const handleConnected = () => setIsConnected(true);
-    const handleDisconnected = () => setIsConnected(false);
+    const handleConnected = () => {
+      setSocketInstance(socket);
+      setIsConnected(true);
+    };
+
+    const handleDisconnected = () => {
+      setSocketInstance(null);
+      setIsConnected(false);
+    };
 
     socket.on("connect", handleConnected);
     socket.on("disconnect", handleDisconnected);
