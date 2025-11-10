@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import IORedis from 'ioredis';
+import { resolveRedisConnection } from '../common/utils/redis.util';
 
 @Injectable()
 export class CacheService implements OnModuleDestroy {
@@ -16,7 +17,12 @@ export class CacheService implements OnModuleDestroy {
         'Redis cache URL not configured. Set REDIS_CACHE_URL or REDIS_URL.',
       );
     }
-    this.client = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+    const { url: normalizedUrl, options } = resolveRedisConnection(
+      this.configService,
+      redisUrl,
+      { maxRetriesPerRequest: null },
+    );
+    this.client = new IORedis(normalizedUrl, options);
     this.client.on('error', (error) => {
       this.logger.error('Cache Redis connection error', error);
     });

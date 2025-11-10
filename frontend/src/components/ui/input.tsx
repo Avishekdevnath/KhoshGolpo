@@ -1,24 +1,28 @@
 "use client";
 
-import { forwardRef } from 'react';
-import type { InputHTMLAttributes } from 'react';
-import { cn } from '@/lib/utils/style';
+import * as React from "react";
 
-type InputProps = InputHTMLAttributes<HTMLInputElement>;
+import { cn } from "@/lib/utils";
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(({ className, type = 'text', ...props }, ref) => {
-  return (
-    <input
-      ref={ref}
-      type={type}
-      className={cn(
-        'flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus-visible:ring-white',
-        className,
-      )}
-      {...props}
-    />
-  );
-});
+const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+  ({ className, type = "text", ...props }, ref) => {
+    return (
+      <input
+        ref={ref}
+        type={type}
+        data-slot="input"
+        className={cn(
+          "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/20 border-input h-11 w-full rounded-lg border bg-transparent px-3 py-2 text-sm shadow-sm transition-[color,box-shadow] outline-none file:inline-flex file:h-8 file:rounded-md file:border-0 file:bg-accent/20 file:px-3 file:text-xs file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+          "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+          "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+);
 
-Input.displayName = 'Input';
+Input.displayName = "Input";
 
+export { Input };

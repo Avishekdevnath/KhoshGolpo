@@ -1,0 +1,31 @@
+[data-theme="app-dark"] .scrollbar-thin,
+[data-theme="app-light"] .scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+[data-theme="app-dark"] .scrollbar-thin::-webkit-scrollbar,
+[data-theme="app-light"] .scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+
+[data-theme="app-dark"] .scrollbar-thin::-webkit-scrollbar-track,
+[data-theme="app-light"] .scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-theme="app-dark"] .scrollbar-thin::-webkit-scrollbar-thumb,
+[data-theme="app-light"] .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+[data-theme="app-dark"] .scrollbar-thin::-webkit-scrollbar-thumb:hover,
+[data-theme="app-light"] .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+

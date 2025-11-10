@@ -19,6 +19,7 @@ import type {
   AiSummaryJob,
 } from '../queue/queue.types';
 import { AiService } from './ai.service';
+import { resolveRedisConnection } from '../common/utils/redis.util';
 
 @Injectable()
 export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
@@ -230,7 +231,12 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private createRedisConnection(url: string): IORedis {
-    const connection = new IORedis(url, { maxRetriesPerRequest: null });
+    const { url: normalizedUrl, options } = resolveRedisConnection(
+      this.configService,
+      url,
+      { maxRetriesPerRequest: null },
+    );
+    const connection = new IORedis(normalizedUrl, options);
     connection.on('error', (err) => {
       this.logger.error('Redis worker connection error', err);
     });

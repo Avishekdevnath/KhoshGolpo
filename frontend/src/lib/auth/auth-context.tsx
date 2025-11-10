@@ -23,6 +23,7 @@ import {
 } from '@/lib/api/auth';
 import { getErrorMessage } from '@/lib/utils/error';
 import { toast } from 'sonner';
+import { appConfig } from '@/lib/config/env';
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -38,6 +39,43 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const demoAuthEnabled = appConfig.demoAuthEnabled;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function createDemoSession(identifier: string): AuthResponse {
+  const raw = identifier?.trim() || 'guest explorer';
+  const base = raw.includes('@') ? raw.split('@')[0] ?? raw : raw;
+  const compact = base.trim().replace(/\s+/g, ' ');
+
+  const handle =
+    compact
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'guest-explorer';
+
+  const displayName =
+    compact
+      .split(/[\s._-]+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ') || 'Guest Explorer';
+
+  const email = raw.includes('@') ? raw : `${handle}@demo.local`;
+
+  return {
+    accessToken: 'demo-access-token',
+    user: {
+      id: `demo-${handle}`,
+      email,
+      handle,
+      displayName,
+      roles: ['moderator'],
+      lastActiveAt: new Date().toISOString(),
+    },
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
@@ -59,6 +97,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const bootstrap = useCallback(async () => {
+    if (demoAuthEnabled) {
+      applySession(null);
+      return;
+    }
+
     try {
       const session = await refreshRequest();
       applySession(session);
@@ -75,6 +118,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (payload: LoginPayload) => {
       setIsActionPending(true);
       try {
+        if (demoAuthEnabled) {
+          await sleep(400);
+          const session = createDemoSession(payload.email);
+          applySession(session);
+          toast.success('Welcome back!');
+          return;
+        }
+
         const result = await loginRequest(payload);
         applySession(result);
         toast.success('Welcome back!');
@@ -94,6 +145,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (payload: RegisterPayload) => {
       setIsActionPending(true);
       try {
+        if (demoAuthEnabled) {
+          await sleep(400);
+          const session = createDemoSession(payload.email);
+          applySession(session);
+          toast.success('Account created. Welcome aboard!');
+          return;
+        }
+
         const result = await registerRequest(payload);
         applySession(result);
         toast.success('Account created. Welcome aboard!');
@@ -112,17 +171,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     setIsActionPending(true);
     try {
-      await logoutRequest();
+      if (demoAuthEnabled) {
+        await sleep(200);
+      } else {
+        await logoutRequest();
+      }
     } catch (error) {
       const message = getErrorMessage(error, 'Logout failed.');
       toast.error(message);
     } finally {
       applySession(null);
       setIsActionPending(false);
+      if (demoAuthEnabled) {
+        toast.success('Signed out.');
+      }
     }
   }, [applySession]);
 
   const refreshProfile = useCallback(async () => {
+    if (demoAuthEnabled) {
+      return;
+    }
+
     if (!accessToken) {
       await bootstrap();
       return;

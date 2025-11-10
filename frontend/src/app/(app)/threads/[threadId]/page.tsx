@@ -1,291 +1,278 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import useSWR from 'swr';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { FormMessage } from '@/components/ui/form-message';
-import { useAuth } from '@/lib/auth/hooks';
-import { getThread, createPost, type Thread, type Post } from '@/lib/api/threads';
-import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { use } from "react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Flame, Heart, MessageCircle, Reply, Share2, Sparkles } from "lucide-react";
 
-const createPostSchema = z.object({
-  body: z.string().min(1, 'Post body is required').max(10000, 'Post must be at most 10000 characters'),
-});
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { demoThreads } from "@/data/demo";
+import { cn } from "@/lib/utils";
 
-type CreatePostFormData = z.infer<typeof createPostSchema>;
+const sentimentDecor = {
+  positive: {
+    label: "Warm",
+    className:
+      "border border-emerald-400/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 dark:border-emerald-400/30",
+  },
+  neutral: {
+    label: "Steady",
+    className:
+      "border border-slate-300/60 bg-slate-200/60 text-slate-700 dark:border-slate-600/60 dark:bg-slate-800/70 dark:text-slate-300",
+  },
+  warning: {
+    label: "Check tone",
+    className:
+      "border border-amber-400/50 bg-amber-500/10 text-amber-600 dark:border-amber-400/40 dark:text-amber-300",
+  },
+} as const;
 
-function PostCard({ post }: { post: Post }) {
-  const formattedDate = new Date(post.createdAt).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+const threadSentiment = {
+  celebration: {
+    label: "Celebration",
+    icon: "✨",
+    className:
+      "border border-emerald-400/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 dark:border-emerald-400/30",
+  },
+  insight: {
+    label: "Insight",
+    icon: "💡",
+    className:
+      "border border-sky-400/40 bg-sky-500/10 text-sky-600 dark:text-sky-300 dark:border-sky-400/30",
+  },
+  caution: {
+    label: "Pause",
+    icon: "⚠️",
+    className:
+      "border border-amber-400/40 bg-amber-500/10 text-amber-600 dark:text-amber-300 dark:border-amber-400/30",
+  },
+  growth: {
+    label: "Growth",
+    icon: "🌱",
+    className:
+      "border border-violet-400/40 bg-violet-500/10 text-violet-600 dark:text-violet-300 dark:border-violet-400/30",
+  },
+} as const;
+
+function SummarySection({ summary }: { summary: string | undefined }) {
+  if (!summary) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200/70 bg-white/70 p-6 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/50 dark:text-slate-400">
+        <Sparkles className="mb-3 size-5 text-slate-400" />
+        We are weaving a warmth summary for this conversation. Check back soon or surface key highlights manually.
+      </div>
+    );
+  }
 
   return (
-    <Card className="p-6">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            User {post.authorId.slice(0, 8)}
-          </span>
-          {post.parentPostId && (
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">(reply)</span>
-          )}
-        </div>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">{formattedDate}</span>
-      </div>
-      <div className="prose prose-sm dark:prose-invert max-w-none">
-        <p className="whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">{post.body}</p>
-      </div>
-      {post.moderationState !== 'approved' && (
-        <div className="mt-3 rounded-md bg-yellow-50 p-2 text-xs text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-          Moderation: {post.moderationState}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function ReplyComposer({
-  threadId,
-  onPostCreated,
-}: {
-  threadId: string;
-  onPostCreated: () => void;
-}) {
-  const { accessToken } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm<CreatePostFormData>({
-    resolver: zodResolver(createPostSchema),
-  });
-
-  const onSubmit = async (data: CreatePostFormData) => {
-    if (!accessToken) {
-      toast.error('You must be logged in to post');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      await createPost(threadId, { body: data.body }, accessToken);
-      toast.success('Post created successfully!');
-      reset();
-      onPostCreated();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create post';
-      toast.error(message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <Card className="p-6">
-      <h3 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-        Post a Reply
-      </h3>
-      <form onSubmit={handleSubmit(onSubmit)}>
+    <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-6 shadow-inner shadow-slate-200/60 dark:border-slate-800/70 dark:bg-slate-900/60 dark:shadow-slate-900/60">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <Textarea
-            {...register('body')}
-            placeholder="Write your reply..."
-            rows={6}
-            className="w-full"
-          />
-          {errors.body && <FormMessage message={errors.body.message} />}
+          <p className="text-sm uppercase tracking-widest text-slate-500 dark:text-slate-400">Warmth summary</p>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-200">{summary}</p>
         </div>
-        <div className="mt-4 flex justify-end">
-          <Button type="submit" isLoading={isSubmitting}>
-            Post Reply
-          </Button>
-        </div>
-      </form>
-    </Card>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white"
+        >
+          <Share2 className="size-4" />
+        </Button>
+      </div>
+    </div>
   );
 }
 
-export default function ThreadDetailPage({ params }: { params: { threadId: string } }) {
-  const { accessToken } = useAuth();
-  const router = useRouter();
-  const [page, setPage] = useState(1);
-  const limit = 20;
-
-  const { data, error, isLoading, mutate } = useSWR(
-    accessToken ? ['thread', params.threadId, page, limit, accessToken] : null,
-    () => getThread(params.threadId, page, limit, accessToken),
-    {
-      revalidateOnFocus: false,
-    },
-  );
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        <div className="flex flex-1 items-center justify-center p-6">
-          <div className="text-center">
-            <p className="text-lg font-semibold text-red-600 dark:text-red-400">
-              Failed to load thread
-            </p>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              {error instanceof Error ? error.message : 'An unexpected error occurred'}
-            </p>
-            <div className="mt-4 flex gap-3 justify-center">
-              <Button variant="secondary" onClick={() => mutate()}>
-                Try again
-              </Button>
-              <Button variant="ghost" onClick={() => router.push('/threads')}>
-                Back to Threads
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        <div className="flex flex-1 items-center justify-center p-6">
-          <div className="text-center">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-100" />
-            <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">Loading thread...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  const { thread, posts, pagination } = data;
-  const totalPages = Math.ceil(pagination.total / pagination.limit);
-  const formattedDate = new Date(thread.createdAt).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+function PostCard({
+  author,
+  role,
+  avatarColor,
+  timestamp,
+  body,
+  sentiment,
+}: {
+  author: string;
+  role: string;
+  avatarColor: string;
+  timestamp: string;
+  body: string;
+  sentiment?: "positive" | "neutral" | "warning";
+}) {
+  const decor = sentiment ? sentimentDecor[sentiment] : null;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="flex items-center justify-between">
-          <Link href="/threads">
-            <Button variant="ghost" className="mb-2">
-              ← Back to Threads
-            </Button>
-          </Link>
+    <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-6 text-slate-700 transition hover:border-slate-300 dark:border-slate-800/60 dark:bg-slate-950/70 dark:text-slate-200 hover:dark:border-slate-700/80">
+      <div className="flex items-start gap-4">
+        <div className={cn("mt-1 flex size-10 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg", avatarColor)}>
+          {author
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .slice(0, 2)}
         </div>
-      </header>
-
-      <div className="flex-1 p-6">
-        <div className="mx-auto max-w-4xl space-y-6">
-          {/* Thread Header */}
-          <Card className="p-6">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-                {thread.title}
-              </h1>
-              <span
-                className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
-                  thread.status === 'open'
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                    : thread.status === 'locked'
-                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                      : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400'
-                }`}
-              >
-                {thread.status}
-              </span>
+        <div className="flex-1 space-y-4">
+          <div className="flex flex-wrap items-start gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">{author}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{role}</p>
             </div>
-
-            {thread.tags && thread.tags.length > 0 && (
-              <div className="mb-4 flex flex-wrap gap-2">
-                {thread.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
+            {decor && (
+              <span className={cn("rounded-lg px-2.5 py-1 text-xs font-medium shadow-inner", decor.className)}>{decor.label}</span>
             )}
-
-            <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
-              <span>{thread.postsCount} posts</span>
-              <span>•</span>
-              <span>{thread.participantsCount} participants</span>
-              <span>•</span>
-              <span>Created {formattedDate}</span>
-            </div>
-          </Card>
-
-          {/* Posts List */}
-          <div className="space-y-4">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
+            <span className="ml-auto text-xs text-slate-500 dark:text-slate-500">{timestamp}</span>
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Page {pagination.page} of {totalPages} • {pagination.total} total posts
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Reply Composer */}
-          {thread.status === 'open' && (
-            <ReplyComposer threadId={thread.id} onPostCreated={() => mutate()} />
-          )}
-
-          {thread.status !== 'open' && (
-            <Card className="p-6">
-              <p className="text-center text-zinc-600 dark:text-zinc-400">
-                This thread is {thread.status} and no longer accepting new posts.
-              </p>
-            </Card>
-          )}
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-200">{body}</p>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-500">
+            <button className="inline-flex items-center transition hover:text-emerald-500 dark:hover:text-emerald-300" aria-label="Appreciate">
+              <Heart className="size-4" />
+            </button>
+            <button className="inline-flex items-center transition hover:text-sky-500 dark:hover:text-sky-300" aria-label="Reply inline">
+              <Reply className="size-4" />
+            </button>
+            <button className="inline-flex items-center transition hover:text-slate-700 dark:hover:text-slate-300" aria-label="Share">
+              <Share2 className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+export default function ThreadDetailPage({ params }: { params: Promise<{ threadId: string }> }) {
+  const { threadId } = use(params);
+
+  const thread =
+    demoThreads.find((item) => item.id === threadId) ?? demoThreads.find((item) => item.id.toLowerCase() === threadId.toLowerCase()) ?? demoThreads[0];
+
+  if (!thread) {
+    notFound();
+  }
+
+  const sentiment = threadSentiment[thread.sentiment];
+
+  return (
+    <div className="space-y-8 text-slate-700 transition-colors dark:text-slate-200">
+      <div className="flex items-center justify-between">
+        <Link
+          href="/threads"
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+        >
+          <ArrowLeft className="size-4" />
+          Back to threads
+        </Link>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            className="rounded-xl border border-slate-200/70 bg-white/80 text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-slate-800/70 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:border-slate-700"
+          >
+            <Flame className="mr-2 size-4 text-amber-500 dark:text-amber-400" />
+            Highlight story
+          </Button>
+          <Button className="rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/30 hover:from-sky-400 hover:to-indigo-500">
+            Join live reaction
+          </Button>
+        </div>
+      </div>
+
+      <Card className="p-0">
+        <div className="space-y-6 p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-500">
+                <span>{thread.category}</span>
+                <span className="text-slate-400 dark:text-slate-600">•</span>
+                <span>{thread.createdAt}</span>
+              </div>
+              <h1 className="text-3xl font-semibold text-slate-900 transition-colors dark:text-white lg:text-4xl">{thread.title}</h1>
+              <p className="max-w-3xl text-sm text-slate-600 dark:text-slate-300">{thread.summary}</p>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-500">
+                <span>{thread.author}</span>
+                <span>•</span>
+                <span>{thread.authorRole}</span>
+                <span>•</span>
+                <span>{thread.replies} replies</span>
+                <span>•</span>
+                <span>{thread.views} views</span>
+                <span>•</span>
+                <span>Warmth prompts active</span>
+              </div>
+            </div>
+            {sentiment && (
+              <span className={cn("rounded-2xl px-4 py-2 text-sm font-medium shadow-inner", sentiment.className)}>
+                <span className="mr-2">{sentiment.icon}</span>
+                {sentiment.label}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {thread.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-lg border border-slate-200/70 bg-white/80 px-3 py-1 text-xs text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-400"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+
+          <SummarySection summary={thread.summary} />
+        </div>
+      </Card>
+
+      <div className="space-y-4">
+        {thread.posts.map((post) => (
+          <PostCard key={post.id} {...post} />
+        ))}
+      </div>
+
+      <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-inner shadow-slate-200/70 transition dark:border-slate-800/70 dark:bg-slate-950/70 dark:shadow-slate-900/70">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">Continue the warmth</p>
+            <p className="text-xs text-slate-500 dark:text-slate-500">Your reply goes live instantly and syncs across all circles.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Mention someone"
+              className="w-40 border-slate-200/70 bg-white/80 text-xs text-slate-600 dark:border-slate-800/70 dark:bg-slate-900/70 dark:text-slate-200"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white"
+            >
+              <Sparkles className="size-4" />
+            </Button>
+          </div>
+        </div>
+        <Textarea
+          rows={4}
+          placeholder="Share a story, reflection, or question…"
+          className="border-slate-200/70 bg-white/80 text-slate-700 placeholder:text-slate-400 dark:border-slate-800/70 dark:bg-slate-900/70 dark:text-slate-200 dark:placeholder:text-slate-500"
+        />
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-500">
+            <span className="inline-flex items-center gap-1">
+              <MessageCircle className="size-4" />
+              Realtime enabled
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Sparkles className="size-4" />
+              Empathy prompts on
+            </span>
+          </div>
+          <Button className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30 hover:from-emerald-400 hover:to-teal-500">
+            Post reply
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 

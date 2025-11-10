@@ -1,16 +1,37 @@
 import * as Joi from 'joi';
 
+const originListValidator = Joi.string().custom((value, helpers) => {
+  const origins = value
+    .split(',')
+    .map((origin: string) => origin.trim())
+    .filter(Boolean);
+  if (origins.length === 0) {
+    return helpers.error('string.empty');
+  }
+  for (const origin of origins) {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(origin);
+    } catch {
+      return helpers.error('string.uri', { value: origin });
+    }
+  }
+  return value;
+}, 'comma separated origin list');
+
 export const configValidationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
   PORT: Joi.number().default(4000),
-  FRONTEND_URL: Joi.string().uri().optional(),
+  FRONTEND_URL: originListValidator.optional(),
 
   MONGO_URI: Joi.string().uri().required(),
   REDIS_URL: Joi.string().uri().optional(),
   REDIS_QUEUE_URL: Joi.string().uri().optional(),
   REDIS_CACHE_URL: Joi.string().uri().optional(),
+  REDIS_TLS_ENABLED: Joi.boolean().optional(),
+  REDIS_TLS_REJECT_UNAUTHORIZED: Joi.boolean().optional(),
 
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRES_IN: Joi.string().default('15m'),

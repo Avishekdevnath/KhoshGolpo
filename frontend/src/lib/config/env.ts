@@ -6,5 +6,6 @@ export const appConfig = {
   defaultRedirect: '/threads',
   loginPath: '/auth/login',
   registerPath: '/auth/register',
+  demoAuthEnabled: process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED !== 'false',
 };
 

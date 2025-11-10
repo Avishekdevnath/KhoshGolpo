@@ -15,6 +15,7 @@ import {
 } from '../queue/queue.constants';
 import type { NotificationJob } from '../queue/queue.types';
 import { NOTIFICATION_DEFAULTS } from './notifications.constants';
+import { resolveRedisConnection } from '../common/utils/redis.util';
 
 @Injectable()
 export class NotificationsWorkerService implements OnModuleInit, OnModuleDestroy {
@@ -120,7 +121,12 @@ export class NotificationsWorkerService implements OnModuleInit, OnModuleDestroy
   }
 
   private createRedisConnection(url: string): IORedis {
-    const connection = new IORedis(url, { maxRetriesPerRequest: null });
+    const { url: normalizedUrl, options } = resolveRedisConnection(
+      this.configService,
+      url,
+      { maxRetriesPerRequest: null },
+    );
+    const connection = new IORedis(normalizedUrl, options);
     connection.on('error', (error) => {
       this.logger.error('Notification worker Redis connection error', error);
     });

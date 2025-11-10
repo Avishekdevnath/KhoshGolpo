@@ -19,6 +19,7 @@ import type {
   AiSummaryJob,
   NotificationJob,
 } from './queue.types';
+import { resolveRedisConnection } from '../common/utils/redis.util';
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {
   removeOnComplete: true,
@@ -49,10 +50,13 @@ export class QueueService implements OnModuleDestroy {
       );
     }
 
-    this.connection = new IORedis(connectionString, {
-      maxRetriesPerRequest: null,
-      ...options,
-    });
+    const { url: normalizedUrl, options: connectionOptions } =
+      resolveRedisConnection(this.configService, connectionString, {
+        maxRetriesPerRequest: null,
+        ...options,
+      });
+
+    this.connection = new IORedis(normalizedUrl, connectionOptions);
 
     this.connection.on('error', (error) => {
       this.logger.error('Redis queue connection error', error.stack);

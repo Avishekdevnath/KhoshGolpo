@@ -47,9 +47,24 @@ async function bootstrap() {
     }),
   );
 
+  const corsOriginConfig =
+    configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+  const allowedOrigins: string[] = corsOriginConfig
+    .split(',')
+    .map((origin: string) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin:
-      configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000',
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`Origin not allowed by CORS: ${origin}`), false);
+    },
     credentials: true,
   });
 
