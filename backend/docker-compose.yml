@@ -2,7 +2,10 @@ version: '3.9'
 
 services:
   api:
-    build: .
+    build:
+      context: .
+      args:
+        DATABASE_URL: ${DATABASE_URL}
     container_name: khoshgolpo_api
     env_file: .env
     ports:
@@ -13,7 +16,10 @@ services:
     command: ['node', 'dist/main.js']
 
   moderation-worker:
-    build: .
+    build:
+      context: .
+      args:
+        DATABASE_URL: ${DATABASE_URL}
     container_name: khoshgolpo_moderation_worker
     env_file: .env
     depends_on:
@@ -22,7 +28,10 @@ services:
     command: ['node', 'dist/ai/ai.worker.service.js']
 
   notification-worker:
-    build: .
+    build:
+      context: .
+      args:
+        DATABASE_URL: ${DATABASE_URL}
     container_name: khoshgolpo_notification_worker
     env_file: .env
     depends_on:

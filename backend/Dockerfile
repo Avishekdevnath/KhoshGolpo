@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 RUN apk upgrade --no-cache
 WORKDIR /app
 
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
+
 # Install dependencies
 COPY package*.json ./
 RUN npm ci
