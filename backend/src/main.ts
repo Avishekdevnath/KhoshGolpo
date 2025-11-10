@@ -1,3 +1,14 @@
+/**
+ * KhoshGolpo Backend - Main Entry Point
+ * 
+ * This file initializes the NestJS application with:
+ * - Validation pipes for request validation
+ * - CORS configuration for frontend access
+ * - Error tracking via Sentry
+ * - Swagger API documentation
+ * - Cookie parsing for JWT refresh tokens
+ */
+
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -22,6 +33,7 @@ import {
 import { NotificationSchema } from './notifications/schemas/notification.schema';
 import { NotificationListResponseDto } from './notifications/dto/notification-responses.dto';
 
+/** Bootstrap the NestJS application */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,

@@ -52,7 +52,7 @@ export class NotificationsController {
       },
     };
   }
-
+  // test
   @Patch(':notificationId/read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark a notification as read.' })
