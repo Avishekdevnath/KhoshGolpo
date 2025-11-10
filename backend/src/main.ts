@@ -42,6 +42,8 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
 
   const configService = app.get(ConfigService);
+  
+  /** Initialize Sentry for error tracking (optional, if SENTRY_DSN is set) */
   const sentryDsn = configService.get<string>('SENTRY_DSN');
   if (sentryDsn) {
     await Sentry.init({
@@ -52,16 +54,19 @@ async function bootstrap() {
     });
   }
 
+  /** Parse cookies from incoming requests (used for JWT refresh tokens) */
   app.use(cookieParser());
 
+  /** Apply global validation pipe for all incoming requests */
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
-      transform: true,
+      whitelist: true, // Remove properties not in DTO
+      transform: true, // Transform payloads to DTO instances
       transformOptions: { enableImplicitConversion: true },
     }),
   );
 
+  /** Configure CORS to allow requests from whitelisted frontend URLs */
   const corsOriginConfig =
     configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
   const allowedOrigins: string[] = corsOriginConfig
@@ -74,15 +79,17 @@ async function bootstrap() {
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
+      // Allow requests from whitelisted origins or without origin header
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
         return;
       }
       callback(new Error(`Origin not allowed by CORS: ${origin}`), false);
     },
-    credentials: true,
+    credentials: true, // Allow credentials (cookies, auth headers)
   });
 
+  /** Setup Swagger API documentation */
   const swaggerTitle = configService.get<string>('SWAGGER_TITLE') ?? 'KhoshGolpo API';
   const swaggerDescription =
     configService.get<string>('SWAGGER_DESCRIPTION') ??
@@ -94,6 +101,7 @@ async function bootstrap() {
     .setTitle(swaggerTitle)
     .setDescription(swaggerDescription)
     .setVersion(swaggerVersion)
+    // Add JWT bearer auth security scheme for protected endpoints
     .addBearerAuth(
       {
         type: 'http',
@@ -105,6 +113,7 @@ async function bootstrap() {
       },
       'access-token',
     )
+    // Add refresh token cookie auth scheme
     .addCookieAuth('refresh_token', {
       type: 'apiKey',
       in: 'cookie',
@@ -112,6 +121,7 @@ async function bootstrap() {
     })
     .build();
 
+  // Generate Swagger document with all response models
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig, {
     extraModels: [
       AuthResponseDto,
@@ -130,19 +140,23 @@ async function bootstrap() {
     ],
   });
 
+  // Setup Swagger UI at /docs endpoint
   SwaggerModule.setup(swaggerPath, app, swaggerDocument, {
     swaggerOptions: {
-      persistAuthorization: true,
+      persistAuthorization: true, // Keep auth token in browser after refresh
     },
     jsonDocumentUrl: `/${swaggerPath}.json`,
   });
 
+  /** Start the server on configured port */
   const port = Number(configService.get<string>('PORT') ?? 4000);
   await app.listen(port);
   app
     .get(Logger)
     .log(`🚀 Backend server is running on: http://localhost:${port}`);
 }
+
+/** Handle bootstrap errors */
 bootstrap().catch((error) => {
   // eslint-disable-next-line no-console
   console.error('Nest application failed to start', error);
