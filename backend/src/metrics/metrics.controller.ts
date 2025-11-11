@@ -1,5 +1,10 @@
 import { Controller, Get, Header } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
 import { MetricsService } from './metrics.service';
 
 @ApiTags('Metrics')
@@ -19,11 +24,11 @@ export class MetricsController {
     description: 'Prometheus metrics payload.',
     schema: {
       type: 'string',
-      example: '# HELP http_requests_total Total number of HTTP requests\nhttp_requests_total 42',
+      example:
+        '# HELP http_requests_total Total number of HTTP requests\nhttp_requests_total 42',
     },
   })
   async getMetrics(): Promise<string> {
     return this.metricsService.getMetrics();
   }
 }
-

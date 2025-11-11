@@ -16,7 +16,7 @@ export class PrismaHealthIndicator extends HealthIndicator {
     try {
       await this.prisma.$runCommandRaw({ ping: 1 });
       return this.getStatus(key, true);
-    } catch (error) {
+    } catch {
       throw new HealthCheckError(
         'MongoDB ping check failed',
         this.getStatus(key, false),
@@ -24,4 +24,3 @@ export class PrismaHealthIndicator extends HealthIndicator {
     }
   }
 }
-

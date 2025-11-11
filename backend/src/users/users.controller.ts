@@ -15,7 +15,10 @@ import {
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { CurrentUser, type ActiveUser } from '../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  type ActiveUser,
+} from '../common/decorators/current-user.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileDto } from '../auth/dto/profile.dto';
 
@@ -48,4 +51,3 @@ export class UsersController {
     return ProfileDto.fromUser(profileSource);
   }
 }
-

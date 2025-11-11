@@ -9,4 +9,3 @@ import { SecurityEventsService } from './security-events.service';
   exports: [SecurityEventsService],
 })
 export class SecurityModule {}
-

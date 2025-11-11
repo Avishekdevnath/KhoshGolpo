@@ -74,7 +74,6 @@ export class ThreadsAdminController {
       dto.moderationFeedback,
       dto.lockThread,
     );
-    return PostSchema.fromModel(post);
+    return PostSchema.fromModel({ ...post });
   }
 }
-

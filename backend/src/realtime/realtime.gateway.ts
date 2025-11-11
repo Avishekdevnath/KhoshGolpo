@@ -9,11 +9,14 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Injectable, Logger } from '@nestjs/common';
-import type { Server, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
-import { RealtimeService } from './realtime.service';
+import {
+  RealtimeService,
+  type AppServer,
+  type AppSocket,
+} from './realtime.service';
 
 interface JoinThreadPayload {
   threadId: string;
@@ -32,7 +35,7 @@ export class RealtimeGateway
   private readonly logger = new Logger(RealtimeGateway.name);
 
   @WebSocketServer()
-  private server!: Server;
+  private server!: AppServer;
 
   constructor(
     private readonly configService: ConfigService,
@@ -40,12 +43,12 @@ export class RealtimeGateway
     private readonly realtimeService: RealtimeService,
   ) {}
 
-  afterInit(server: Server): void {
+  afterInit(server: AppServer): void {
     this.realtimeService.setServer(server);
     this.logger.log('Realtime gateway initialized.');
   }
 
-  async handleConnection(client: Socket): Promise<void> {
+  async handleConnection(client: AppSocket): Promise<void> {
     try {
       const token = this.extractToken(client);
       if (!token) {
@@ -65,13 +68,13 @@ export class RealtimeGateway
     }
   }
 
-  handleDisconnect(client: Socket): void {
+  handleDisconnect(client: AppSocket): void {
     this.realtimeService.unregisterSocket(client);
   }
 
   @SubscribeMessage('joinThread')
   handleJoinThread(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AppSocket,
     @MessageBody() body: JoinThreadPayload,
   ): void {
     if (!body?.threadId || typeof body.threadId !== 'string') {
@@ -84,7 +87,7 @@ export class RealtimeGateway
 
   @SubscribeMessage('leaveThread')
   handleLeaveThread(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AppSocket,
     @MessageBody() body: JoinThreadPayload,
   ): void {
     if (!body?.threadId || typeof body.threadId !== 'string') {
@@ -95,7 +98,7 @@ export class RealtimeGateway
     client.emit('thread.left', { threadId: body.threadId });
   }
 
-  private extractToken(client: Socket): string | undefined {
+  private extractToken(client: AppSocket): string | undefined {
     const authHeader =
       client.handshake.headers.authorization ??
       client.handshake.headers.Authorization;
@@ -116,4 +119,3 @@ export class RealtimeGateway
     return this.jwtService.verifyAsync<JwtPayload>(token, { secret });
   }
 }
-

@@ -3,22 +3,32 @@ import { IsIn, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class ListRateLimitQueryDto {
   @Transform(({ value }) => {
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
+    const numeric = Number.parseInt(String(value ?? ''), 10);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
       return 60;
     }
-    return Math.min(parsed, 1440);
+    return Math.min(numeric, 1440);
   })
   @IsNumber()
   @Min(1)
   windowMinutes = 60;
 
-  @Transform(({ value }) => (value ? String(value).trim().toLowerCase() : 'endpoint'))
+  @Transform(({ value }) => {
+    const normalized = String(value ?? 'endpoint')
+      .trim()
+      .toLowerCase();
+    return normalized.length > 0 ? normalized : 'endpoint';
+  })
   @IsIn(['endpoint', 'ip', 'user'])
   groupBy: 'endpoint' | 'ip' | 'user' = 'endpoint';
 
-  @Transform(({ value }) => (value ? String(value).trim() : undefined))
+  @Transform(({ value }) => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    const trimmed = String(value).trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  })
   @IsOptional()
   filter?: string;
 }
-

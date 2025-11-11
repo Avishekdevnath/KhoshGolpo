@@ -16,6 +16,15 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Additional project-specific ignores:
     "guide/**",
+    "node_modules/**",
+    "dist/**",
+    "coverage/**",
+    ".vercel/**",
+    ".cache/**",
+    "public/**",
+    "vercel.json",
+    "*.config.js",
+    "*.config.cjs",
   ]),
 ]);
 

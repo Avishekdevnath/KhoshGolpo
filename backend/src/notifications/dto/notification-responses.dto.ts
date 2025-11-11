@@ -9,4 +9,3 @@ export class NotificationListResponseDto {
   @ApiProperty({ type: () => PaginationMetaDto })
   pagination!: PaginationMetaDto;
 }
-

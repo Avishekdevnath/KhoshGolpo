@@ -4,13 +4,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  ModerationState,
-  Prisma,
-  Thread,
-  ThreadStatus,
-  Post,
-} from '@prisma/client';
+import { ThreadStatus } from '@prisma/client/index';
+import type { Prisma, ModerationState, Thread } from '@prisma/client/index';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -21,6 +16,24 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { UsersService } from '../users/users.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { CacheService } from '../cache/cache.service';
+
+type ReactionType = 'upvote' | 'downvote';
+
+interface PostRecord {
+  id: string;
+  threadId: string;
+  authorId: string;
+  body: string;
+  mentions?: string[] | null;
+  parentPostId?: string | null;
+  moderationState: ModerationState;
+  moderationFeedback?: string | null;
+  upvotesCount?: number | null;
+  downvotesCount?: number | null;
+  repliesCount?: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface PaginatedThreads {
   data: Thread[];
@@ -89,7 +102,11 @@ export class ThreadsService {
     return thread;
   }
 
-  async getThreadPosts(threadId: string, page = 1, limit = 20) {
+  async getThreadPosts(
+    threadId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{ posts: PostRecord[]; total: number }> {
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId },
     });
@@ -110,7 +127,7 @@ export class ThreadsService {
     ]);
 
     return {
-      posts,
+      posts: posts as PostRecord[],
       total,
     };
   }
@@ -118,54 +135,55 @@ export class ThreadsService {
   async createThread(
     author: ActiveUser,
     dto: CreateThreadDto,
-  ): Promise<{ thread: Thread; firstPost: Post }> {
+  ): Promise<{ thread: Thread; firstPost: PostRecord }> {
     const authorId = author.userId;
     const now = new Date();
 
     const slug = await this.generateUniqueSlug(dto.title);
+    const mentionHandles = this.extractMentionHandles(dto.body);
+    const mentionRecipients = await this.resolveMentionRecipientIds(dto.body, [
+      authorId,
+    ]);
 
     const result = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
-      const thread = await tx.thread.create({
-        data: {
-          title: dto.title.trim(),
-          slug,
-          authorId,
-          tags: dto.tags ?? [],
-          status: ThreadStatus.open,
-          lastActivityAt: now,
-          postsCount: 1,
-          participantsCount: 1,
-          participantIds: [authorId],
-        },
-      });
+        const thread = await tx.thread.create({
+          data: {
+            title: dto.title.trim(),
+            slug,
+            authorId,
+            tags: dto.tags ?? [],
+            status: ThreadStatus.open,
+            lastActivityAt: now,
+            postsCount: 1,
+            participantsCount: 1,
+            participantIds: [authorId],
+          },
+        });
 
-      const post = await tx.post.create({
-        data: {
-          threadId: thread.id,
-          authorId,
-          body: dto.body,
-          moderationState: 'approved',
-        },
-      });
+        const post = (await tx.post.create({
+          data: {
+            threadId: thread.id,
+            authorId,
+            body: dto.body,
+            mentions: mentionHandles,
+            moderationState: 'approved',
+          },
+        })) as PostRecord;
 
-      await tx.user.update({
-        where: { id: authorId },
-        data: {
-          threadsCount: { increment: 1 },
-          postsCount: { increment: 1 },
-          lastActiveAt: now,
-        },
-      });
+        await tx.user.update({
+          where: { id: authorId },
+          data: {
+            threadsCount: { increment: 1 },
+            postsCount: { increment: 1 },
+            lastActiveAt: now,
+          },
+        });
 
-      return { thread, firstPost: post };
+        return { thread, firstPost: post };
       },
     );
-
-    const mentionRecipients = await this.resolveMentionRecipientIds(
-      dto.body,
-      [authorId],
-    );
+    await this.replacePostMentions(result.firstPost.id, mentionRecipients);
 
     await this.safeQueue('ai-moderation', () =>
       this.ai.queuePostModeration({
@@ -198,9 +216,17 @@ export class ThreadsService {
           title: dto.title,
           createdAt: result.thread.createdAt,
         },
-        mentionRecipients,
+        [],
       ),
     );
+
+    if (mentionRecipients.length) {
+      await this.handleMentionNotifications(
+        result.thread.id,
+        result.firstPost,
+        mentionRecipients,
+      );
+    }
 
     return result;
   }
@@ -209,59 +235,82 @@ export class ThreadsService {
     author: ActiveUser,
     threadId: string,
     dto: CreatePostDto,
-  ): Promise<Post> {
+  ): Promise<PostRecord> {
     const authorId = author.userId;
     const now = new Date();
+    const mentionHandles = this.extractMentionHandles(dto.body);
+    const mentionRecipients = await this.resolveMentionRecipientIds(dto.body, [
+      authorId,
+    ]);
 
     const result = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
-      const thread = await tx.thread.findUnique({ where: { id: threadId } });
-      if (!thread) {
-        throw new NotFoundException('Thread not found.');
-      }
+        const thread = await tx.thread.findUnique({ where: { id: threadId } });
+        if (!thread) {
+          throw new NotFoundException('Thread not found.');
+        }
 
-      if (thread.status !== ThreadStatus.open) {
-        throw new ForbiddenException('Thread is not accepting new posts.');
-      }
+        if (thread.status !== ThreadStatus.open) {
+          throw new ForbiddenException('Thread is not accepting new posts.');
+        }
 
-      const post = await tx.post.create({
-        data: {
-          threadId,
-          authorId,
-          body: dto.body,
-          moderationState: 'approved',
-          parentPostId: dto.parentPostId ?? undefined,
-        },
-      });
+        const post = (await tx.post.create({
+          data: {
+            threadId,
+            authorId,
+            body: dto.body,
+            mentions: mentionHandles,
+            moderationState: 'approved',
+            parentPostId: dto.parentPostId ?? undefined,
+          },
+        })) as PostRecord;
 
-      const participantIds = new Set(thread.participantIds ?? []);
-      if (!participantIds.has(authorId)) {
-        participantIds.add(authorId);
-      }
+        if (dto.parentPostId) {
+          const parent = await tx.post.findUnique({
+            where: { id: dto.parentPostId },
+          });
+          if (!parent || parent.threadId !== threadId) {
+            throw new NotFoundException(
+              'Parent post not found in this thread.',
+            );
+          }
+          await tx.post.update({
+            where: { id: dto.parentPostId },
+            data: {
+              repliesCount: { increment: 1 },
+            } as Prisma.PostUncheckedUpdateInput,
+          });
+        }
 
-      await tx.thread.update({
-        where: { id: threadId },
-        data: {
-          postsCount: { increment: 1 },
-          lastActivityAt: now,
-          participantsCount: participantIds.size,
-          participantIds: Array.from(participantIds),
-        },
-      });
+        const participantIds = new Set(thread.participantIds ?? []);
+        if (!participantIds.has(authorId)) {
+          participantIds.add(authorId);
+        }
 
-      await tx.user.update({
-        where: { id: authorId },
-        data: {
-          postsCount: { increment: 1 },
-          lastActiveAt: now,
-        },
-      });
+        await tx.thread.update({
+          where: { id: threadId },
+          data: {
+            postsCount: { increment: 1 },
+            lastActivityAt: now,
+            participantsCount: participantIds.size,
+            participantIds: Array.from(participantIds),
+          },
+        });
 
-      return { post, thread };
+        await tx.user.update({
+          where: { id: authorId },
+          data: {
+            postsCount: { increment: 1 },
+            lastActiveAt: now,
+          },
+        });
+
+        return { post, thread };
       },
     );
 
     const { post, thread } = result;
+    await this.replacePostMentions(post.id, mentionRecipients);
     const recipients = await this.buildPostNotificationRecipients(
       thread,
       authorId,
@@ -277,18 +326,28 @@ export class ThreadsService {
       }),
     );
 
-    await this.safeQueue('notification', () =>
-      this.notifications.enqueue(
-        'post.created',
-        {
-          postId: post.id,
-          threadId,
-          authorId,
-          createdAt: post.createdAt,
-        },
-        recipients,
-      ),
-    );
+    if (recipients.participants.length) {
+      await this.safeQueue('notification', () =>
+        this.notifications.enqueue(
+          'post.created',
+          {
+            postId: post.id,
+            threadId,
+            authorId,
+            createdAt: post.createdAt,
+          },
+          recipients.participants,
+        ),
+      );
+    }
+
+    if (recipients.mentions.length) {
+      await this.handleMentionNotifications(
+        threadId,
+        post,
+        recipients.mentions,
+      );
+    }
 
     this.realtime.emitPostCreated(threadId, post);
 
@@ -298,11 +357,254 @@ export class ThreadsService {
     return post;
   }
 
+  async updatePost(
+    author: ActiveUser,
+    threadId: string,
+    postId: string,
+    body?: string,
+  ): Promise<PostRecord> {
+    const trimmedBody = body?.trim();
+    if (!trimmedBody) {
+      throw new ForbiddenException('Post body must not be empty.');
+    }
+
+    const mentionHandles = this.extractMentionHandles(trimmedBody);
+    const mentionRecipients = await this.resolveMentionRecipientIds(
+      trimmedBody,
+      [author.userId],
+    );
+
+    const { post: updatedPost, changed } = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const existing = await tx.post.findUnique({ where: { id: postId } });
+        if (!existing || existing.threadId !== threadId) {
+          throw new NotFoundException('Post not found.');
+        }
+        if (existing.authorId !== author.userId) {
+          throw new ForbiddenException('You can only edit your own posts.');
+        }
+
+        if (existing.body === trimmedBody) {
+          return { post: existing as PostRecord, changed: false };
+        }
+
+        const post = (await tx.post.update({
+          where: { id: postId },
+          data: {
+            body: trimmedBody,
+            mentions: mentionHandles,
+            updatedAt: new Date(),
+          },
+        })) as PostRecord;
+
+        await tx.thread.update({
+          where: { id: threadId },
+          data: { lastActivityAt: new Date() },
+        });
+
+        return { post, changed: true };
+      },
+    );
+
+    if (!changed) {
+      return updatedPost;
+    }
+
+    await this.replacePostMentions(updatedPost.id, mentionRecipients);
+    if (mentionRecipients.length) {
+      await this.handleMentionNotifications(
+        threadId,
+        updatedPost,
+        mentionRecipients,
+      );
+    }
+
+    this.realtime.emitPostUpdated(threadId, updatedPost);
+    await this.invalidateThreadCaches(threadId);
+    await this.cache.delByPattern(this.threadListPattern());
+
+    return updatedPost;
+  }
+
+  async reactToPost(
+    user: ActiveUser,
+    threadId: string,
+    postId: string,
+    type: ReactionType,
+  ): Promise<{ post: PostRecord; userReaction: ReactionType | null }> {
+    const userId = user.userId;
+
+    const result = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const post = await tx.post.findUnique({ where: { id: postId } });
+        if (!post || post.threadId !== threadId) {
+          throw new NotFoundException('Post not found.');
+        }
+
+        const postReaction = tx.postReaction;
+        const existing = await postReaction.findUnique({
+          where: { postId_userId: { postId, userId } },
+        });
+
+        let upvoteDelta = 0;
+        let downvoteDelta = 0;
+        let newReaction: ReactionType | null = type;
+
+        if (existing) {
+          const existingType = existing.type as ReactionType;
+          if (existingType === type) {
+            await postReaction.delete({
+              where: { postId_userId: { postId, userId } },
+            });
+            newReaction = null;
+            if (type === 'upvote') {
+              upvoteDelta -= 1;
+            } else {
+              downvoteDelta -= 1;
+            }
+          } else {
+            await postReaction.update({
+              where: { postId_userId: { postId, userId } },
+              data: { type },
+            });
+            if (existingType === 'upvote') {
+              upvoteDelta -= 1;
+            } else {
+              downvoteDelta -= 1;
+            }
+            if (type === 'upvote') {
+              upvoteDelta += 1;
+            } else {
+              downvoteDelta += 1;
+            }
+          }
+        } else {
+          await postReaction.create({
+            data: {
+              postId,
+              userId,
+              type,
+            },
+          });
+          if (type === 'upvote') {
+            upvoteDelta += 1;
+          } else {
+            downvoteDelta += 1;
+          }
+        }
+
+        let postAfterReaction = post as PostRecord;
+        if (upvoteDelta !== 0 || downvoteDelta !== 0) {
+          const data: Record<string, unknown> = { updatedAt: new Date() };
+          if (upvoteDelta !== 0) {
+            data.upvotesCount = { increment: upvoteDelta };
+          }
+          if (downvoteDelta !== 0) {
+            data.downvotesCount = { increment: downvoteDelta };
+          }
+          postAfterReaction = (await tx.post.update({
+            where: { id: postId },
+            data: data as Prisma.PostUncheckedUpdateInput,
+          })) as PostRecord;
+        }
+
+        return { postAfterReaction, newReaction };
+      },
+    );
+
+    const { postAfterReaction, newReaction } = result;
+
+    this.realtime.emitPostReaction({
+      threadId,
+      postId,
+      upvotesCount: postAfterReaction.upvotesCount ?? 0,
+      downvotesCount: postAfterReaction.downvotesCount ?? 0,
+      userId,
+      reaction: newReaction,
+    });
+
+    if (newReaction && postAfterReaction.authorId !== userId) {
+      await this.safeQueue('notification', () =>
+        this.notifications.enqueue(
+          'post.reacted',
+          {
+            postId,
+            threadId,
+            reaction: newReaction,
+            actorId: userId,
+            createdAt: new Date(),
+          },
+          [postAfterReaction.authorId],
+        ),
+      );
+    }
+
+    await this.invalidateThreadCaches(threadId);
+    await this.cache.delByPattern(this.threadListPattern());
+
+    return { post: postAfterReaction, userReaction: newReaction };
+  }
+
+  async removePostReaction(
+    user: ActiveUser,
+    threadId: string,
+    postId: string,
+  ): Promise<PostRecord> {
+    const userId = user.userId;
+
+    const updatedPost = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const post = await tx.post.findUnique({ where: { id: postId } });
+        if (!post || post.threadId !== threadId) {
+          throw new NotFoundException('Post not found.');
+        }
+
+        const postReaction = tx.postReaction;
+        const existing = await postReaction.findUnique({
+          where: { postId_userId: { postId, userId } },
+        });
+        if (!existing) {
+          return post as PostRecord;
+        }
+
+        await postReaction.delete({
+          where: { postId_userId: { postId, userId } },
+        });
+
+        const data: Record<string, unknown> = { updatedAt: new Date() };
+        if ((existing.type as ReactionType) === 'upvote') {
+          data.upvotesCount = { increment: -1 };
+        } else {
+          data.downvotesCount = { increment: -1 };
+        }
+
+        return (await tx.post.update({
+          where: { id: postId },
+          data: data as Prisma.PostUncheckedUpdateInput,
+        })) as PostRecord;
+      },
+    );
+
+    this.realtime.emitPostReaction({
+      threadId,
+      postId,
+      upvotesCount: updatedPost.upvotesCount ?? 0,
+      downvotesCount: updatedPost.downvotesCount ?? 0,
+      userId,
+      reaction: null,
+    });
+
+    await this.invalidateThreadCaches(threadId);
+    await this.cache.delByPattern(this.threadListPattern());
+
+    return updatedPost;
+  }
+
   async getThreadWithPosts(threadId: string, page = 1, limit = 20) {
     const cacheKey = this.buildThreadDetailCacheKey(threadId, page, limit);
     const cached = await this.cache.get<{
       thread: Thread;
-      posts: Post[];
+      posts: PostRecord[];
       postsTotal: number;
       page: number;
       limit: number;
@@ -349,7 +651,7 @@ export class ThreadsService {
     moderationState: ModerationState,
     moderationFeedback?: string | null,
     lockThread?: boolean,
-  ): Promise<Post> {
+  ): Promise<PostRecord> {
     const post = await this.prisma.post.update({
       where: { id: postId },
       data: {
@@ -434,17 +736,86 @@ export class ThreadsService {
     thread: Thread,
     authorId: string,
     body: string,
-  ): Promise<string[]> {
-    const recipients = new Set<string>();
-    if (thread.authorId !== authorId) {
-      recipients.add(thread.authorId);
+  ): Promise<{ participants: string[]; mentions: string[] }> {
+    const participants = new Set<string>();
+    if (thread.authorId && thread.authorId !== authorId) {
+      participants.add(thread.authorId);
     }
+    (thread.participantIds ?? []).forEach((participantId: string) => {
+      if (participantId !== authorId) {
+        participants.add(participantId);
+      }
+    });
+
     const mentionRecipients = await this.resolveMentionRecipientIds(body, [
       authorId,
-      thread.authorId,
     ]);
-    mentionRecipients.forEach((id) => recipients.add(id));
-    return Array.from(recipients);
+    const mentionSet = new Set(mentionRecipients);
+    mentionSet.forEach((id) => participants.delete(id));
+
+    return {
+      participants: Array.from(participants),
+      mentions: Array.from(mentionSet),
+    };
+  }
+
+  private async replacePostMentions(
+    postId: string,
+    mentionedUserIds: string[],
+  ): Promise<void> {
+    await this.prisma.postMention.deleteMany({ where: { postId } });
+    if (!mentionedUserIds.length) {
+      return;
+    }
+    await this.prisma.postMention.createMany({
+      data: mentionedUserIds.map((userId) => ({
+        postId,
+        mentionedUserId: userId,
+      })),
+    });
+  }
+
+  private async markMentionsNotified(
+    postId: string,
+    recipientIds: string[],
+  ): Promise<void> {
+    if (!recipientIds.length) {
+      return;
+    }
+    await this.prisma.postMention.updateMany({
+      where: {
+        postId,
+        mentionedUserId: { in: recipientIds },
+      },
+      data: {
+        notified: true,
+        notifiedAt: new Date(),
+      },
+    });
+  }
+
+  private async handleMentionNotifications(
+    threadId: string,
+    post: PostRecord,
+    recipientIds: string[],
+  ): Promise<void> {
+    if (!recipientIds.length) {
+      return;
+    }
+    await this.safeQueue('notification', () =>
+      this.notifications.enqueue(
+        'post.mentioned',
+        {
+          postId: post.id,
+          threadId,
+          authorId: post.authorId,
+          createdAt: post.createdAt,
+        },
+        recipientIds,
+      ),
+    );
+    await this.markMentionsNotified(post.id, recipientIds);
+    this.realtime.emitPostMention(threadId, post, recipientIds);
   }
 
   private buildThreadListCacheKey(query: ListThreadsQueryDto): string {
@@ -478,7 +849,7 @@ export class ThreadsService {
   ): Promise<void> {
     try {
       await enqueue();
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.warn(
         `Failed to enqueue ${label} job: ${(error as Error).message}`,
       );

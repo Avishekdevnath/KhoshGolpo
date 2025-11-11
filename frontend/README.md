@@ -174,6 +174,7 @@ Development tips:
 | `npm run lint:fix` | Auto-fix lint issues where possible. |
 | `npm run format` | Format source with Prettier. |
 | `npm run format:check` | Verify formatting without applying changes. |
+| `npm run test` | Vitest + Testing Library smoke tests. |
 
 ---
 
@@ -181,8 +182,11 @@ Development tips:
 
 - **ESLint** enforces coding standards (React, Next.js, Tailwind plugins).
 - **TypeScript** runs in strict mode; type errors fail builds.
+- **Vitest + Testing Library** provide component smoke tests (see `src/components/**/__tests__`). Run with `npm run test`.
 - **Manual Testing**: Use Next.js preview URL or `npm run dev` for interactive QA.
-- Future enhancements may introduce component/unit tests (e.g., Vitest or Jest) as the UI stabilises.
+- Future enhancements will expand automated coverage to authenticated flows and thread interactions.
+
+GitHub Actions (`.github/workflows/frontend-ci.yml`) runs lint, build, and tests on every push/PR to the frontend workspace and optionally hits a Vercel deploy hook when `VERCEL_DEPLOY_HOOK_URL` is configured.
 
 ---
 
@@ -191,6 +195,7 @@ Development tips:
 - Generate a production build via `npm run build`; serve with `npm run start` or deploy to a platform like Vercel/Netlify.
 - Ensure environment vars (`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL`) match the deployed backend.
 - For static asset caching, configure hosting platform to cache `/public` assets aggressively while respecting Next.js headers for dynamic routes.
+- `frontend/Dockerfile` builds a production-ready image; the root `docker-compose.yml` can boot both services locally alongside MongoDB and Redis.
 
 ---
 

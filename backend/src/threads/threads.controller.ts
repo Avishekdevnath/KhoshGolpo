@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -26,13 +28,17 @@ import {
   type ActiveUser,
 } from '../common/decorators/current-user.decorator';
 import { CreatePostDto } from './dto/create-post.dto';
+import { UpdatePostDto } from './dto/update-post.dto';
+import { ReactPostDto } from './dto/react-post.dto';
 import { ThreadSchema } from './schemas/thread.schema';
 import { PostSchema } from '../posts/schemas/post.schema';
 import {
   CreatePostResponseDto,
   CreateThreadResponseDto,
+  ReactPostResponseDto,
   ThreadDetailResponseDto,
   ThreadListResponseDto,
+  UpdatePostResponseDto,
 } from './dto/thread-responses.dto';
 
 @ApiTags('Threads')
@@ -84,7 +90,7 @@ export class ThreadsController {
     );
     return {
       thread: ThreadSchema.fromModel(thread),
-      firstPost: PostSchema.fromModel(firstPost),
+      firstPost: PostSchema.fromModel({ ...firstPost }),
     };
   }
 
@@ -126,7 +132,7 @@ export class ThreadsController {
 
     return {
       thread: ThreadSchema.fromModel(result.thread),
-      posts: result.posts.map((post) => PostSchema.fromModel(post)),
+      posts: result.posts.map((post) => PostSchema.fromModel({ ...post })),
       pagination: {
         page: result.page,
         limit: result.limit,
@@ -150,6 +156,79 @@ export class ThreadsController {
     @Body() dto: CreatePostDto,
   ) {
     const post = await this.threadsService.createPost(user, threadId, dto);
-    return { post: PostSchema.fromModel(post) };
+    return { post: PostSchema.fromModel({ ...post }) };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Update an existing post.' })
+  @ApiOkResponse({
+    description: 'Post updated successfully.',
+    type: UpdatePostResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Patch(':threadId/posts/:postId')
+  async updatePost(
+    @Param('threadId') threadId: string,
+    @Param('postId') postId: string,
+    @CurrentUser() user: ActiveUser,
+    @Body() dto: UpdatePostDto,
+  ) {
+    const post = await this.threadsService.updatePost(
+      user,
+      threadId,
+      postId,
+      dto.body,
+    );
+    return { post: PostSchema.fromModel({ ...post }) };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'React to a post with an upvote or downvote.' })
+  @ApiOkResponse({
+    description: 'Reaction applied successfully.',
+    type: ReactPostResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Post(':threadId/posts/:postId/reactions')
+  async reactToPost(
+    @Param('threadId') threadId: string,
+    @Param('postId') postId: string,
+    @CurrentUser() user: ActiveUser,
+    @Body() dto: ReactPostDto,
+  ) {
+    const result = await this.threadsService.reactToPost(
+      user,
+      threadId,
+      postId,
+      dto.type,
+    );
+    return {
+      post: PostSchema.fromModel({ ...result.post }),
+      reaction: result.userReaction,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Remove your reaction from a post.' })
+  @ApiOkResponse({
+    description: 'Reaction removed successfully.',
+    type: UpdatePostResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Delete(':threadId/posts/:postId/reactions')
+  async removeReaction(
+    @Param('threadId') threadId: string,
+    @Param('postId') postId: string,
+    @CurrentUser() user: ActiveUser,
+  ) {
+    const post = await this.threadsService.removePostReaction(
+      user,
+      threadId,
+      postId,
+    );
+    return { post: PostSchema.fromModel({ ...post }) };
   }
 }

@@ -7,4 +7,3 @@ import { MetricsController } from './metrics.controller';
   controllers: [MetricsController],
 })
 export class MetricsModule {}
-

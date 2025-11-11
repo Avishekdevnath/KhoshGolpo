@@ -71,7 +71,10 @@ export class AuthController {
     description:
       'Validates credentials, issues JWT tokens, and sets the refresh token cookie.',
   })
-  @ApiOkResponse({ description: 'Authentication successful.', type: AuthResponseDto })
+  @ApiOkResponse({
+    description: 'Authentication successful.',
+    type: AuthResponseDto,
+  })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials.' })
   @Post('login')
   async login(
@@ -100,7 +103,9 @@ export class AuthController {
     description: 'New access and refresh tokens issued successfully.',
     type: AuthResponseDto,
   })
-  @ApiUnauthorizedResponse({ description: 'Refresh token is missing or invalid.' })
+  @ApiUnauthorizedResponse({
+    description: 'Refresh token is missing or invalid.',
+  })
   @Post('refresh')
   async refresh(
     @Req() req: Request,

@@ -22,4 +22,3 @@ export class UpdateUserStatusDto {
   @MaxLength(500)
   reason?: string;
 }
-

@@ -19,7 +19,9 @@ interface EmailVerificationPayload {
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly transporter = nodemailer.createTransport(this.buildTransportConfig());
+  private readonly transporter = nodemailer.createTransport(
+    this.buildTransportConfig(),
+  );
   private readonly fromAddress: string;
 
   constructor(private readonly configService: ConfigService) {
@@ -30,7 +32,9 @@ export class MailService {
     this.fromAddress = `"${fromName}" <${user}>`;
   }
 
-  async sendEmailVerification(payload: EmailVerificationPayload): Promise<void> {
+  async sendEmailVerification(
+    payload: EmailVerificationPayload,
+  ): Promise<void> {
     const subject = 'Verify your email address';
     const text = this.renderEmailVerificationText(payload);
     const html = this.renderEmailVerificationHtml(payload);
@@ -52,7 +56,9 @@ export class MailService {
         text: options.text,
         html: options.html,
       });
-      this.logger.debug(`Email sent to ${options.to} with subject "${options.subject}"`);
+      this.logger.debug(
+        `Email sent to ${options.to} with subject "${options.subject}"`,
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error occurred';
@@ -66,14 +72,22 @@ export class MailService {
 
   private buildTransportConfig(): SMTPTransport.Options {
     const host = this.configService.getOrThrow<string>('EMAIL_HOST');
-    const port = this.configService.get<number>('EMAIL_PORT') ?? 587;
-    const secureConfig = this.configService.get('EMAIL_SECURE');
+    const port =
+      this.configService.get<number>('EMAIL_PORT') ??
+      (Number.parseInt(
+        this.configService.get<string>('EMAIL_PORT') ?? '587',
+        10,
+      ) ||
+        587);
+    const secureConfig =
+      this.configService.get<boolean>('EMAIL_SECURE') ??
+      this.configService.get<string>('EMAIL_SECURE');
     const secure =
       typeof secureConfig === 'boolean'
         ? secureConfig
         : typeof secureConfig === 'string'
-        ? secureConfig.toLowerCase() === 'true'
-        : false;
+          ? secureConfig.toLowerCase() === 'true'
+          : false;
     const user = this.configService.getOrThrow<string>('GMAIL_USER');
     const pass = this.configService.getOrThrow<string>('GMAIL_APP_PASSWORD');
 
@@ -88,7 +102,9 @@ export class MailService {
     };
   }
 
-  private renderEmailVerificationText(payload: EmailVerificationPayload): string {
+  private renderEmailVerificationText(
+    payload: EmailVerificationPayload,
+  ): string {
     return [
       `Hello ${payload.displayName},`,
       '',
@@ -100,7 +116,9 @@ export class MailService {
     ].join('\n');
   }
 
-  private renderEmailVerificationHtml(payload: EmailVerificationPayload): string {
+  private renderEmailVerificationHtml(
+    payload: EmailVerificationPayload,
+  ): string {
     return `
       <p>Hello ${payload.displayName},</p>
       <p>Thanks for signing up for <strong>KhoshGolpo</strong>!</p>
@@ -116,4 +134,3 @@ export class MailService {
     `;
   }
 }
-

@@ -1,13 +1,23 @@
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsDate,
-  IsIn,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsArray, IsDate, IsIn, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import type { Post, ModerationState } from '@prisma/client';
+import type { ModerationState } from '@prisma/client/index';
+
+type PostRecord = {
+  id: string;
+  threadId: string;
+  authorId: string;
+  body: string;
+  mentions?: string[] | null;
+  parentPostId?: string | null;
+  moderationState: ModerationState;
+  moderationFeedback?: string | null;
+  upvotesCount?: number | null;
+  downvotesCount?: number | null;
+  repliesCount?: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 const MODERATION_STATES: ModerationState[] = [
   'pending',
@@ -30,10 +40,20 @@ export class PostSchema {
   authorId!: string;
 
   @ApiProperty({
-    example: 'You can use BullMQ with NestJS by registering queues in a module.',
+    example:
+      'You can use BullMQ with NestJS by registering queues in a module.',
   })
   @IsString()
   body!: string;
+
+  @ApiProperty({ example: 5 })
+  upvotesCount!: number;
+
+  @ApiProperty({ example: 1 })
+  downvotesCount!: number;
+
+  @ApiProperty({ example: 2 })
+  repliesCount!: number;
 
   @ApiProperty({ type: [String], example: ['65efe051b1a338de7f458ad4'] })
   @IsArray()
@@ -72,18 +92,22 @@ export class PostSchema {
   @IsDate()
   updatedAt!: Date;
 
-  static fromModel(post: Post): PostSchema {
+  static fromModel(post: Record<string, unknown>): PostSchema {
+    const record = post as PostRecord;
     const schema = new PostSchema();
-    schema.id = post.id;
-    schema.threadId = post.threadId;
-    schema.authorId = post.authorId;
-    schema.body = post.body;
-    schema.mentions = post.mentions ?? [];
-    schema.parentPostId = post.parentPostId ?? undefined;
-    schema.moderationState = post.moderationState;
-    schema.moderationFeedback = post.moderationFeedback ?? undefined;
-    schema.createdAt = post.createdAt;
-    schema.updatedAt = post.updatedAt;
+    schema.id = record.id;
+    schema.threadId = record.threadId;
+    schema.authorId = record.authorId;
+    schema.body = record.body;
+    schema.upvotesCount = record.upvotesCount ?? 0;
+    schema.downvotesCount = record.downvotesCount ?? 0;
+    schema.repliesCount = record.repliesCount ?? 0;
+    schema.mentions = record.mentions ?? [];
+    schema.parentPostId = record.parentPostId ?? undefined;
+    schema.moderationState = record.moderationState;
+    schema.moderationFeedback = record.moderationFeedback ?? undefined;
+    schema.createdAt = record.createdAt;
+    schema.updatedAt = record.updatedAt;
     return schema;
   }
 }

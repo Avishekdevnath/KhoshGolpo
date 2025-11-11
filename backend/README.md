@@ -308,10 +308,12 @@ Authorization: Bearer <access>
 npm run test         # unit tests
 npm run test:watch   # watch mode
 npm run test:e2e     # e2e tests (configure dedicated test DB)
-npm run test:cov     # coverage report
+npm run test:cov     # focused coverage report (auth services + thread DTO)
 ```
 
-Tests rely on Jest with ts-jest transformers. E2E suite boots a Nest testing module and can target an isolated MongoDB database.
+Tests rely on Jest with ts-jest transformers. E2E suite boots a Nest testing module and can target an isolated MongoDB database. Coverage instrumentation is intentionally scoped to the authentication service, thread pagination DTO, and utility helpers; see `docs/test-plan.md` for the current matrix.
+
+GitHub Actions (`.github/workflows/backend-ci.yml`) runs lint, unit tests, coverage, and optionally pings a Render deploy hook when `RENDER_DEPLOY_HOOK_URL` is supplied.
 
 ---
 

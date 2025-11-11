@@ -15,4 +15,3 @@ export class UpdateUserRolesDto {
   @IsIn(ROLE_OPTIONS, { each: true })
   roles!: string[];
 }
-

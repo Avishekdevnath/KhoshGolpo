@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { Prisma, User, RefreshToken } from '@prisma/client';
+import { Prisma, User, RefreshToken } from '@prisma/client/index';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface CreateUserParams {

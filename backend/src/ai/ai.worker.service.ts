@@ -14,10 +14,7 @@ import {
   QUEUE_CONFIG_KEYS,
   QueueIdentifier,
 } from '../queue/queue.constants';
-import type {
-  AiModerationJob,
-  AiSummaryJob,
-} from '../queue/queue.types';
+import type { AiModerationJob, AiSummaryJob } from '../queue/queue.types';
 import { AiService } from './ai.service';
 import { resolveRedisConnection } from '../common/utils/redis.util';
 
@@ -79,6 +76,11 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
 
     this.registerWorkerEvents(this.moderationWorker, 'moderation');
     this.registerWorkerEvents(this.summaryWorker, 'summary');
+
+    await Promise.all([
+      this.moderationWorker.waitUntilReady(),
+      this.summaryWorker.waitUntilReady(),
+    ]);
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -97,7 +99,8 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
       throw new Error('OpenAI client not initialized.');
     }
 
-    const timeoutMs = job.data.timeoutMs ?? this.aiService.getRequestTimeoutMs();
+    const timeoutMs =
+      job.data.timeoutMs ?? this.aiService.getRequestTimeoutMs();
     const response = await this.openAiClient.moderations.create(
       {
         model: this.aiService.getModerationModel(),
@@ -120,7 +123,7 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
       where: { id: job.data.postId },
       data: {
         moderationState: flagged ? 'flagged' : 'approved',
-        moderationFeedback: flagged ? feedback ?? null : null,
+        moderationFeedback: flagged ? (feedback ?? null) : null,
       },
     });
 
@@ -137,7 +140,8 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
       throw new Error('OpenAI client not initialized.');
     }
 
-    const timeoutMs = job.data.timeoutMs ?? this.aiService.getRequestTimeoutMs();
+    const timeoutMs =
+      job.data.timeoutMs ?? this.aiService.getRequestTimeoutMs();
 
     const response = await this.openAiClient.responses.create(
       {
@@ -156,45 +160,64 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
         : undefined,
     );
 
-    const outputItems = response.output as Array<Record<string, any>> | undefined;
+    const outputItems: Array<Record<string, unknown>> = Array.isArray(
+      response.output,
+    )
+      ? (response.output as unknown[]).filter(
+          (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === 'object',
+        )
+      : [];
+
+    const extractSegmentText = (segment: unknown): string | undefined => {
+      if (segment && typeof segment === 'object') {
+        const record = segment as Record<string, unknown>;
+        const textValue = record.text;
+        if (typeof textValue === 'string') {
+          return textValue;
+        }
+
+        if (
+          textValue &&
+          typeof textValue === 'object' &&
+          'value' in textValue &&
+          typeof (textValue as Record<string, unknown>).value === 'string'
+        ) {
+          return (textValue as { value: string }).value;
+        }
+
+        const outputText = record.output_text;
+        if (
+          Array.isArray(outputText) &&
+          outputText.every((value) => typeof value === 'string')
+        ) {
+          return outputText.join('\n');
+        }
+      }
+
+      return undefined;
+    };
 
     const derivedSummary = outputItems
-      ?.map((item) => {
-        if (Array.isArray(item?.content)) {
-          const contentText = item.content
-            .map((contentItem: any) => {
-              if (typeof contentItem?.text === 'string') {
-                return contentItem.text;
-              }
-
-              if (
-                contentItem?.text &&
-                typeof contentItem.text === 'object' &&
-                'value' in contentItem.text &&
-                contentItem.text.value
-              ) {
-                return String(contentItem.text.value);
-              }
-
-              if (Array.isArray(contentItem?.output_text)) {
-                return contentItem.output_text.join('\n');
-              }
-
-              return undefined;
-            })
-            .filter((text): text is string => Boolean(text?.trim()))
-            .join('\n');
-
-          if (contentText) {
-            return contentText;
+      .map((item) => {
+        const content = item.content;
+        if (Array.isArray(content)) {
+          const segments = content
+            .map((segment) => extractSegmentText(segment))
+            .filter((value): value is string => Boolean(value?.trim()));
+          if (segments.length > 0) {
+            return segments.join('\n');
           }
         }
 
-        if (Array.isArray(item?.output_text)) {
+        if (
+          Array.isArray(item.output_text) &&
+          item.output_text.every((value) => typeof value === 'string')
+        ) {
           return item.output_text.join('\n');
         }
 
-        if (typeof item?.text === 'string') {
+        if (typeof item.text === 'string') {
           return item.text;
         }
 
@@ -203,8 +226,14 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
       .filter((text): text is string => Boolean(text?.trim()))
       .join('\n');
 
-    const summary =
-      response.output_text ?? (derivedSummary ? derivedSummary : undefined);
+    const summaryCandidate =
+      Array.isArray(response.output_text) && response.output_text.length > 0
+        ? response.output_text.join('\n')
+        : typeof response.output_text === 'string'
+          ? response.output_text
+          : undefined;
+
+    const summary = summaryCandidate ?? (derivedSummary || undefined);
 
     if (!summary) {
       this.logger.warn(
@@ -218,7 +247,7 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
       data: {
         summary,
         summaryGeneratedAt: new Date(),
-      } as any,
+      },
     });
   }
 
@@ -272,5 +301,6 @@ export class AiWorkerService implements OnModuleInit, OnModuleDestroy {
     const key = this.configService.get<string>('OPENAI_API_KEY');
     return Boolean(key && key.trim().length > 0);
   }
-}
 
+  // PrismaService already extends PrismaClient, so use the injected instance directly.
+}

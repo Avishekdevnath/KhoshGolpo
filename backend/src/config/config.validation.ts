@@ -1,22 +1,28 @@
 import * as Joi from 'joi';
 
-const originListValidator = Joi.string().custom((value, helpers) => {
-  const origins = value
-    .split(',')
-    .map((origin: string) => origin.trim())
-    .filter(Boolean);
-  if (origins.length === 0) {
-    return helpers.error('string.empty');
+const originListValidator = Joi.string().custom((rawValue, helpers) => {
+  if (typeof rawValue !== 'string') {
+    throw helpers.error('string.base');
   }
+
+  const origins = rawValue
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+
+  if (origins.length === 0) {
+    throw helpers.error('string.empty');
+  }
+
   for (const origin of origins) {
     try {
-      // eslint-disable-next-line no-new
-      new URL(origin);
+      void new URL(origin);
     } catch {
-      return helpers.error('string.uri', { value: origin });
+      throw helpers.error('string.uri', { value: origin });
     }
   }
-  return value;
+
+  return rawValue;
 }, 'comma separated origin list');
 
 export const configValidationSchema = Joi.object({
@@ -68,7 +74,6 @@ export const configValidationSchema = Joi.object({
   SWAGGER_DESCRIPTION: Joi.string().optional(),
   SWAGGER_VERSION: Joi.string().optional(),
   SWAGGER_PATH: Joi.string()
-    .pattern(/^[a-z0-9\-\/]+$/i)
+    .pattern(/^[a-z0-9-/]+$/i)
     .optional(),
 });
-

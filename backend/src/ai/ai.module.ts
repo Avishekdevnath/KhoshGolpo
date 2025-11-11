@@ -11,4 +11,3 @@ import { AiWorkerService } from './ai.worker.service';
   exports: [AiService],
 })
 export class AiModule {}
-

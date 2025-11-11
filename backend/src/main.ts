@@ -1,6 +1,6 @@
 /**
  * KhoshGolpo Backend - Main Entry Point
- * 
+ *
  * This file initializes the NestJS application with:
  * - Validation pipes for request validation
  * - CORS configuration for frontend access
@@ -42,11 +42,11 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
 
   const configService = app.get(ConfigService);
-  
+
   /** Initialize Sentry for error tracking (optional, if SENTRY_DSN is set) */
   const sentryDsn = configService.get<string>('SENTRY_DSN');
   if (sentryDsn) {
-    await Sentry.init({
+    Sentry.init({
       dsn: sentryDsn,
       environment: configService.get<string>('NODE_ENV') ?? 'development',
       tracesSampleRate: 0.1,
@@ -67,12 +67,11 @@ async function bootstrap() {
   );
 
   /** Configure CORS to allow requests from whitelisted frontend URLs */
-  const corsOriginConfig =
-    configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
-  const allowedOrigins: string[] = corsOriginConfig
+  const corsOriginConfig = configService.get<string>('FRONTEND_URL');
+  const allowedOrigins = (corsOriginConfig ?? 'http://localhost:3000')
     .split(',')
-    .map((origin: string) => origin.trim())
-    .filter(Boolean);
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
 
   app.enableCors({
     origin: (
@@ -90,11 +89,13 @@ async function bootstrap() {
   });
 
   /** Setup Swagger API documentation */
-  const swaggerTitle = configService.get<string>('SWAGGER_TITLE') ?? 'KhoshGolpo API';
+  const swaggerTitle =
+    configService.get<string>('SWAGGER_TITLE') ?? 'KhoshGolpo API';
   const swaggerDescription =
     configService.get<string>('SWAGGER_DESCRIPTION') ??
     'REST API documentation for the KhoshGolpo backend services.';
-  const swaggerVersion = configService.get<string>('SWAGGER_VERSION') ?? '1.0.0';
+  const swaggerVersion =
+    configService.get<string>('SWAGGER_VERSION') ?? '1.0.0';
   const swaggerPath = configService.get<string>('SWAGGER_PATH') ?? 'docs';
 
   const swaggerConfig = new DocumentBuilder()
@@ -158,7 +159,6 @@ async function bootstrap() {
 
 /** Handle bootstrap errors */
 bootstrap().catch((error) => {
-  // eslint-disable-next-line no-console
   console.error('Nest application failed to start', error);
   process.exit(1);
 });

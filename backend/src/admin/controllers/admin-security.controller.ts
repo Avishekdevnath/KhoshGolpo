@@ -12,7 +12,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ListSecurityEventsQueryDto } from '../dto/list-security-events.query';
 import { ListRateLimitQueryDto } from '../dto/list-rate-limit.query';
-import type { SecurityEvent } from '@prisma/client';
+import type { SecurityEvent } from '@prisma/client/index';
 import { PaginationMetaDto } from '../../threads/dto/thread-responses.dto';
 
 class SecurityEventResponseDto {
@@ -40,7 +40,7 @@ export class AdminSecurityController {
   ): Promise<SecurityEventResponseDto> {
     const result = await this.adminSecurityService.listEvents(query);
     return {
-      data: result.data as SecurityEvent[],
+      data: result.data,
       pagination: {
         page: result.page,
         limit: result.limit,
@@ -78,4 +78,3 @@ export class AdminSecurityController {
     return this.adminSecurityService.listRateLimitSummary(query);
   }
 }
-

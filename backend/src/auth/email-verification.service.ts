@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { randomBytes, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
-import type { User } from '@prisma/client';
+import type { User } from '@prisma/client/index';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { calculateExpiryDate } from '../common/utils/time.util';
@@ -51,7 +51,9 @@ export class EmailVerificationService {
     }
 
     if (record.consumedAt) {
-      throw new UnauthorizedException('Verification token has already been used.');
+      throw new UnauthorizedException(
+        'Verification token has already been used.',
+      );
     }
 
     if (record.expiresAt.getTime() < Date.now()) {
@@ -122,8 +124,8 @@ export class EmailVerificationService {
       frontendUrl && frontendUrl.trim().length > 0
         ? frontendUrl.trim()
         : domain
-        ? `https://${domain}`
-        : '';
+          ? `https://${domain}`
+          : '';
 
     if (!base) {
       throw new BadRequestException(
@@ -156,4 +158,3 @@ export class EmailVerificationService {
     );
   }
 }
-

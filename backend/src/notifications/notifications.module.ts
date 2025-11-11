@@ -14,4 +14,3 @@ import { RealtimeModule } from '../realtime/realtime.module';
   exports: [NotificationsService],
 })
 export class NotificationsModule {}
-

@@ -20,6 +20,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/types/**/*"]
 }

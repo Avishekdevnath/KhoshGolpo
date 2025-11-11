@@ -9,4 +9,3 @@ export const AI_DEFAULTS = {
   summaryModel: 'gpt-4o-mini',
   requestTimeoutMs: 10_000,
 };
-

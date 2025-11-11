@@ -31,6 +31,8 @@ model User {
 
   threads Thread[] @relation("UserThreads")
   posts   Post[]   @relation("UserPosts")
+  reactions PostReaction[]
+  mentions  PostMention[]
   auditLogs  AdminAudit[] @relation("UserAdminAudit")
 }
 
@@ -83,13 +85,54 @@ model Post {
   parentPostId       String?         @map("parentPostId") @db.ObjectId
   moderationState    ModerationState @default(approved)
   moderationFeedback String?
+  upvotesCount       Int             @default(0)
+  downvotesCount     Int             @default(0)
+  repliesCount       Int             @default(0)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  author User   @relation("UserPosts", fields: [authorId], references: [id])
+  thread  Thread        @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author  User          @relation("UserPosts", fields: [authorId], references: [id])
+  parent  Post?         @relation("PostReplies", fields: [parentPostId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies Post[]        @relation("PostReplies")
+  reactions PostReaction[]
+  mentionsResolved PostMention[]
 
   @@index([threadId, createdAt])
+}
+
+model PostReaction {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  postId    String        @db.ObjectId
+  userId    String        @db.ObjectId
+  type      ReactionType
+  createdAt DateTime      @default(now())
+
+  post Post @relation(fields: [postId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+}
+
+enum ReactionType {
+  upvote
+  downvote
+}
+
+model PostMention {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  postId          String   @db.ObjectId
+  mentionedUserId String   @db.ObjectId
+  notified        Boolean  @default(false)
+  notifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  post    Post @relation(fields: [postId], references: [id])
+  user    User @relation(fields: [mentionedUserId], references: [id])
+
+  @@index([mentionedUserId, createdAt])
+  @@index([postId])
 }
 
 enum ModerationState {

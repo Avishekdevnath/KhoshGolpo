@@ -10,11 +10,12 @@ export interface ActiveUser {
   displayName: string;
 }
 
-export const CurrentUser = createParamDecorator<unknown, ActiveUser | undefined>(
-  (_data, context: ExecutionContext) => {
-    const request = context
-      .switchToHttp()
-      .getRequest<Request & { user?: ActiveUser }>();
-    return request.user;
-  },
-);
+export const CurrentUser = createParamDecorator<
+  unknown,
+  ActiveUser | undefined
+>((_data, context: ExecutionContext) => {
+  const request = context
+    .switchToHttp()
+    .getRequest<Request & { user?: ActiveUser }>();
+  return request.user;
+});

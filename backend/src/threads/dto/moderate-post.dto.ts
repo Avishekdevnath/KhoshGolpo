@@ -1,6 +1,12 @@
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
-import type { ModerationState } from '@prisma/client';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import type { ModerationState } from '@prisma/client/index';
 
 const MODERATION_STATES: ModerationState[] = [
   'pending',
@@ -38,4 +44,3 @@ export class ModeratePostDto {
   @IsBoolean()
   lockThread?: boolean;
 }
-

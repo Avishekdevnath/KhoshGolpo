@@ -7,4 +7,3 @@ export const NOTIFICATION_DEFAULTS = {
   retryLimit: 5,
   requestTimeoutMs: 8000,
 };
-

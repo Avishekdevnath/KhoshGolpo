@@ -1,5 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { Prisma, UserStatus } from '@prisma/client/index';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsersService } from '../../users/users.service';
 import type { ListUsersQueryDto } from '../dto/list-users.query';
@@ -30,8 +34,10 @@ export class AdminUsersService {
       where.roles = { hasSome: query.roles };
     }
     if (query.status && query.status.length > 0) {
-      // Prisma typing for enums on Mongo can be slow to regenerate; cast for now.
-      where.status = { in: query.status } as any;
+      const statusFilter: UserStatus[] = query.status.map(
+        (status) => status as UserStatus,
+      );
+      where.status = { in: statusFilter };
     }
 
     const orderBy: Prisma.UserOrderByWithRelationInput[] = [];
@@ -98,20 +104,28 @@ export class AdminUsersService {
     return updated;
   }
 
-  async updateStatus(userId: string, dto: UpdateUserStatusDto, actorId: string) {
+  async updateStatus(
+    userId: string,
+    dto: UpdateUserStatusDto,
+    actorId: string,
+  ) {
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found.');
     }
 
     if (userId === actorId && dto.status !== 'active') {
-      throw new ConflictException('Administrators cannot suspend or ban themselves.');
+      throw new ConflictException(
+        'Administrators cannot suspend or ban themselves.',
+      );
     }
 
     const updates: Prisma.UserUpdateInput = {
       status: dto.status,
       bannedReason: dto.reason ?? null,
-      bannedAt: ['banned', 'suspended'].includes(dto.status) ? new Date() : null,
+      bannedAt: ['banned', 'suspended'].includes(dto.status)
+        ? new Date()
+        : null,
       bannedBy: ['banned', 'suspended'].includes(dto.status) ? actorId : null,
     };
 
@@ -162,4 +176,3 @@ export class AdminUsersService {
     });
   }
 }
-

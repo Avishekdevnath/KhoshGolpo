@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDate, IsOptional, IsString } from 'class-validator';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client/index';
 
 type NotificationLike = {
   id: string;
@@ -71,4 +71,3 @@ export class NotificationSchema {
     return schema;
   }
 }
-

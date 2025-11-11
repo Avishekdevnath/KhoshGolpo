@@ -13,12 +13,10 @@ export class VerifyEmailQueryDto {
   @ApiProperty({
     description:
       'The raw email verification token sent to the user via email (hex string).',
-    example:
-      '2f3aef49dba6a8ed0ffb1f97cf8f0f9a3d9667bc1f9a8b2c3d4e5f6a7b8c9d0e',
+    example: '2f3aef49dba6a8ed0ffb1f97cf8f0f9a3d9667bc1f9a8b2c3d4e5f6a7b8c9d0e',
   })
   @IsString()
   @IsHexadecimal()
   @Length(64, 128)
   token!: string;
 }
-

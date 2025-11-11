@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client/index';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
 import {
@@ -75,9 +75,10 @@ export class NotificationsService {
       return [];
     }
 
+    const prisma = this.prisma;
     const notifications = await Promise.all(
       recipientIds.map((userId) =>
-        (this.prisma as any).notification.create({
+        prisma.notification.create({
           data: {
             userId,
             event,
@@ -107,7 +108,7 @@ export class NotificationsService {
       where.read = false;
     }
 
-    const prismaNotification = (this.prisma as any).notification;
+    const prismaNotification = this.prisma.notification;
     const items: NotificationRecord[] = await prismaNotification.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -128,11 +129,11 @@ export class NotificationsService {
     userId: string,
     notificationId: string,
   ): Promise<NotificationRecord> {
-    const prismaNotification = (this.prisma as any).notification;
+    const prismaNotification = this.prisma.notification;
     const notification: NotificationRecord | null =
       await prismaNotification.findUnique({
-      where: { id: notificationId },
-    });
+        where: { id: notificationId },
+      });
     if (!notification || notification.userId !== userId) {
       throw new NotFoundException('Notification not found.');
     }
@@ -146,7 +147,7 @@ export class NotificationsService {
   }
 
   async markAllAsRead(userId: string): Promise<number> {
-    const prismaNotification = (this.prisma as any).notification;
+    const prismaNotification = this.prisma.notification;
     const result = await prismaNotification.updateMany({
       where: { userId, read: false },
       data: {
@@ -158,7 +159,9 @@ export class NotificationsService {
   }
 
   private getWebhookUrl(): string | undefined {
-    const url = this.configService.get<string>(NOTIFICATION_CONFIG_KEYS.webhookUrl);
+    const url = this.configService.get<string>(
+      NOTIFICATION_CONFIG_KEYS.webhookUrl,
+    );
     const trimmed = url?.trim();
     return trimmed && trimmed.length > 0 ? trimmed : undefined;
   }
@@ -168,10 +171,13 @@ export class NotificationsService {
       NOTIFICATION_CONFIG_KEYS.retryLimit,
     );
     const parsed =
-      typeof value === 'number' ? value : value ? Number.parseInt(value, 10) : undefined;
+      typeof value === 'number'
+        ? value
+        : value
+          ? Number.parseInt(value, 10)
+          : undefined;
     return Number.isFinite(parsed) && parsed && parsed > 0
       ? Number(parsed)
       : NOTIFICATION_DEFAULTS.retryLimit;
   }
 }
-

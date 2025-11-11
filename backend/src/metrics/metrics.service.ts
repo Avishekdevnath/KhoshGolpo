@@ -21,4 +21,3 @@ export class MetricsService {
     return this.registry.metrics();
   }
 }
-

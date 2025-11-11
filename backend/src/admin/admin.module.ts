@@ -25,4 +25,3 @@ import { AdminSecurityService } from './services/admin-security.service';
   ],
 })
 export class AdminModule {}
-

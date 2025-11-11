@@ -1,6 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import type { Prisma, SecurityEvent } from '@prisma/client';
+
+export type SecurityEventDelegate = {
+  create: (
+    args: Prisma.SecurityEventCreateArgs,
+  ) => Prisma.PrismaPromise<SecurityEvent>;
+  findMany: (
+    args: Prisma.SecurityEventFindManyArgs,
+  ) => Prisma.PrismaPromise<SecurityEvent[]>;
+  count: (args: Prisma.SecurityEventCountArgs) => Prisma.PrismaPromise<number>;
+};
+
+export type SecurityEventClient = {
+  securityEvent: SecurityEventDelegate;
+};
 
 export interface SecurityEventInput {
   type: string;
@@ -15,9 +28,9 @@ export interface SecurityEventInput {
 
 @Injectable()
 export class SecurityEventsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: SecurityEventClient) {}
 
-  async recordEvent(input: SecurityEventInput) {
+  recordEvent(input: SecurityEventInput): Prisma.PrismaPromise<SecurityEvent> {
     const {
       type,
       userId,
@@ -43,12 +56,15 @@ export class SecurityEventsService {
     });
   }
 
-  async listEvents(params: Prisma.SecurityEventFindManyArgs) {
+  listEvents(
+    params: Prisma.SecurityEventFindManyArgs,
+  ): Prisma.PrismaPromise<SecurityEvent[]> {
     return this.prisma.securityEvent.findMany(params);
   }
 
-  async countEvents(where: Prisma.SecurityEventWhereInput) {
+  countEvents(
+    where: Prisma.SecurityEventWhereInput,
+  ): Prisma.PrismaPromise<number> {
     return this.prisma.securityEvent.count({ where });
   }
 }
-

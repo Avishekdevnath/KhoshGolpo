@@ -1,9 +1,4 @@
-import {
-  Controller,
-  Get,
-  UseGuards,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -20,7 +15,6 @@ import { ListModerationThreadsQueryDto } from '../dto/list-moderation-threads.qu
 import { PostSchema } from '../../posts/schemas/post.schema';
 import { ThreadSchema } from '../../threads/schemas/thread.schema';
 import { UserSchema } from '../../users/schemas/user.schema';
-import type { Post, Thread, User } from '@prisma/client';
 import { PaginationMetaDto } from '../../threads/dto/thread-responses.dto';
 
 class ModerationPostResponseDto {
@@ -50,7 +44,9 @@ class ModerationThreadListResponseDto {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('admin/moderation')
 export class AdminModerationController {
-  constructor(private readonly adminModerationService: AdminModerationService) {}
+  constructor(
+    private readonly adminModerationService: AdminModerationService,
+  ) {}
 
   @Get('posts')
   @ApiOkResponse({
@@ -59,13 +55,15 @@ export class AdminModerationController {
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
   @ApiForbiddenResponse({ description: 'Admin or moderator role required.' })
-  async listPosts(@Query() query: ListModerationPostsQueryDto): Promise<ModerationPostListResponseDto> {
+  async listPosts(
+    @Query() query: ListModerationPostsQueryDto,
+  ): Promise<ModerationPostListResponseDto> {
     const result = await this.adminModerationService.listPosts(query);
     return {
-      data: result.data.map((item) => ({
-        post: PostSchema.fromModel(item as Post),
-        thread: ThreadSchema.fromModel(item.thread as Thread),
-        author: UserSchema.fromModel(item.author as User),
+      data: result.data.map(({ post, thread, author }) => ({
+        post: PostSchema.fromModel({ ...post }),
+        thread: ThreadSchema.fromModel(thread),
+        author: UserSchema.fromModel(author),
       })),
       pagination: {
         page: result.page,
@@ -82,12 +80,14 @@ export class AdminModerationController {
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
   @ApiForbiddenResponse({ description: 'Admin or moderator role required.' })
-  async listThreads(@Query() query: ListModerationThreadsQueryDto): Promise<ModerationThreadListResponseDto> {
+  async listThreads(
+    @Query() query: ListModerationThreadsQueryDto,
+  ): Promise<ModerationThreadListResponseDto> {
     const result = await this.adminModerationService.listThreads(query);
     return {
-      data: result.data.map((thread) => ({
-        thread: ThreadSchema.fromModel(thread as Thread),
-        author: UserSchema.fromModel(thread.author as User),
+      data: result.data.map(({ thread, author }) => ({
+        thread: ThreadSchema.fromModel(thread),
+        author: UserSchema.fromModel(author),
       })),
       pagination: {
         page: result.page,
@@ -97,4 +97,3 @@ export class AdminModerationController {
     };
   }
 }
-

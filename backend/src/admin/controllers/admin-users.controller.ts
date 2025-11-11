@@ -24,8 +24,11 @@ import { UserSchema } from '../../users/schemas/user.schema';
 import { PaginationMetaDto } from '../../threads/dto/thread-responses.dto';
 import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
 import { UpdateUserStatusDto } from '../dto/update-user-status.dto';
-import type { User } from '@prisma/client';
-import { CurrentUser, type ActiveUser } from '../../common/decorators/current-user.decorator';
+import type { User } from '@prisma/client/index';
+import {
+  CurrentUser,
+  type ActiveUser,
+} from '../../common/decorators/current-user.decorator';
 
 class UserListResponseDto {
   data!: UserSchema[];
@@ -47,7 +50,9 @@ export class AdminUsersController {
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
   @ApiForbiddenResponse({ description: 'Admin role required.' })
-  async listUsers(@Query() query: ListUsersQueryDto): Promise<UserListResponseDto> {
+  async listUsers(
+    @Query() query: ListUsersQueryDto,
+  ): Promise<UserListResponseDto> {
     const result = await this.adminUsersService.listUsers(query);
     return {
       data: result.data.map((user) => UserSchema.fromModel(user as User)),
@@ -71,8 +76,12 @@ export class AdminUsersController {
     @Body() dto: UpdateUserRolesDto,
     @CurrentUser() actor: ActiveUser,
   ): Promise<UserSchema> {
-    const updated = await this.adminUsersService.updateRoles(userId, dto, actor.userId);
-    return UserSchema.fromModel(updated as User);
+    const updated = await this.adminUsersService.updateRoles(
+      userId,
+      dto,
+      actor.userId,
+    );
+    return UserSchema.fromModel(updated);
   }
 
   @Patch(':userId/status')
@@ -87,8 +96,12 @@ export class AdminUsersController {
     @Body() dto: UpdateUserStatusDto,
     @CurrentUser() actor: ActiveUser,
   ): Promise<UserSchema> {
-    const updated = await this.adminUsersService.updateStatus(userId, dto, actor.userId);
-    return UserSchema.fromModel(updated as User);
+    const updated = await this.adminUsersService.updateStatus(
+      userId,
+      dto,
+      actor.userId,
+    );
+    return UserSchema.fromModel(updated);
   }
 
   @Post(':userId/logout')
@@ -105,4 +118,3 @@ export class AdminUsersController {
     return this.adminUsersService.forceLogout(userId, actor.userId);
   }
 }
-

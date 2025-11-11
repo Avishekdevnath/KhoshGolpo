@@ -29,4 +29,3 @@ export type QueueJobPayload =
   | { type: 'aiModeration'; data: AiModerationJob; options?: JobsOptions }
   | { type: 'aiSummary'; data: AiSummaryJob; options?: JobsOptions }
   | { type: 'notifications'; data: NotificationJob; options?: JobsOptions };
-

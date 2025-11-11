@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Get,
   HttpCode,
@@ -17,7 +16,10 @@ import {
 } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { CurrentUser, type ActiveUser } from '../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  type ActiveUser,
+} from '../common/decorators/current-user.decorator';
 import { ListNotificationsQueryDto } from './dto/list-notifications.query';
 import { NotificationSchema } from './schemas/notification.schema';
 import { NotificationListResponseDto } from './dto/notification-responses.dto';
@@ -44,7 +46,9 @@ export class NotificationsController {
       query,
     );
     return {
-      data: result.data.map(NotificationSchema.fromModel),
+      data: result.data.map((notification) =>
+        NotificationSchema.fromModel(notification),
+      ),
       pagination: {
         page: result.page,
         limit: result.limit,
@@ -89,4 +93,3 @@ export class NotificationsController {
     return { updatedCount };
   }
 }
-

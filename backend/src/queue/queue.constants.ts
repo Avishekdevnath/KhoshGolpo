@@ -11,4 +11,3 @@ export const QUEUE_CONFIG_KEYS = {
 } as const;
 
 export type QueueIdentifier = keyof typeof DEFAULT_QUEUE_NAMES;
-

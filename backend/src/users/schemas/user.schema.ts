@@ -9,7 +9,7 @@ import {
   IsString,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import type { User } from '@prisma/client';
+import type { User } from '@prisma/client/index';
 
 type UserStatusValue = 'active' | 'suspended' | 'banned';
 
@@ -116,9 +116,9 @@ export class UserSchema {
     schema.bannedAt = extendedUser.bannedAt ?? undefined;
     schema.bannedReason = extendedUser.bannedReason ?? undefined;
     schema.lastActiveAt = user.lastActiveAt ?? undefined;
-    schema.emailVerifiedAt = (
-      user as User & { emailVerifiedAt?: Date | null }
-    ).emailVerifiedAt ?? undefined;
+    schema.emailVerifiedAt =
+      (user as User & { emailVerifiedAt?: Date | null }).emailVerifiedAt ??
+      undefined;
     schema.threadsCount = user.threadsCount ?? 0;
     schema.postsCount = user.postsCount ?? 0;
     schema.createdAt = user.createdAt;

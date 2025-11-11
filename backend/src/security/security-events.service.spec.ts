@@ -1,60 +1,76 @@
+import type { Prisma, SecurityEvent } from '@prisma/client';
+import type {
+  SecurityEventClient,
+  SecurityEventDelegate,
+} from './security-events.service';
 import { SecurityEventsService } from './security-events.service';
 
-describe('SecurityEventsService', () => {
-  const prismaMock = {
-    securityEvent: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
-  } as any;
+const prismaPromise = <T>(value: T): Prisma.PrismaPromise<T> =>
+  Promise.resolve(value) as Prisma.PrismaPromise<T>;
 
-  const service = new SecurityEventsService(prismaMock);
+const createSecurityEventClientMock = () => {
+  const securityEvent = {
+    create: jest.fn<
+      Prisma.PrismaPromise<SecurityEvent>,
+      [Prisma.SecurityEventCreateArgs]
+    >(() => prismaPromise({} as SecurityEvent)),
+    findMany: jest.fn<
+      Prisma.PrismaPromise<SecurityEvent[]>,
+      [Prisma.SecurityEventFindManyArgs]
+    >(() => prismaPromise([] as SecurityEvent[])),
+    count: jest.fn<
+      Prisma.PrismaPromise<number>,
+      [Prisma.SecurityEventCountArgs]
+    >(() => prismaPromise(0)),
+  } as jest.Mocked<SecurityEventDelegate>;
+
+  const prisma = { securityEvent } satisfies SecurityEventClient;
+
+  return { securityEvent, prisma };
+};
+
+describe('SecurityEventsService', () => {
+  let securityEvent: jest.Mocked<SecurityEventDelegate>;
+  let service: SecurityEventsService;
 
   beforeEach(() => {
+    const mocks = createSecurityEventClientMock();
+    securityEvent = mocks.securityEvent;
+    service = new SecurityEventsService(mocks.prisma);
     jest.clearAllMocks();
   });
 
   it('records security events with defaults', async () => {
-    const input = {
+    await service.recordEvent({
       type: 'login_failed',
       userId: 'user123',
       ip: '127.0.0.1',
-    };
+    });
 
-    await service.recordEvent(input);
-
-    expect(prismaMock.securityEvent.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        type: 'login_failed',
-        userId: 'user123',
-        ip: '127.0.0.1',
-        severity: 'info',
-        status: 'open',
-      }),
+    const [[createArgs]] = securityEvent.create.mock.calls;
+    expect(createArgs.data).toMatchObject({
+      type: 'login_failed',
+      userId: 'user123',
+      ip: '127.0.0.1',
+      severity: 'info',
+      status: 'open',
     });
   });
 
   it('lists events with provided parameters', async () => {
-    prismaMock.securityEvent.findMany.mockResolvedValueOnce([]);
-
     await service.listEvents({ where: { type: 'rate_limit' }, take: 10 });
 
-    expect(prismaMock.securityEvent.findMany).toHaveBeenCalledWith({
+    expect(securityEvent.findMany).toHaveBeenCalledWith({
       where: { type: 'rate_limit' },
       take: 10,
     });
   });
 
   it('counts events with provided filter', async () => {
-    prismaMock.securityEvent.count.mockResolvedValueOnce(5);
+    await service.countEvents({ severity: 'warning' });
 
-    const count = await service.countEvents({ severity: 'warning' });
-
-    expect(prismaMock.securityEvent.count).toHaveBeenCalledWith({
+    expect(securityEvent.count).toHaveBeenCalledWith({
       where: { severity: 'warning' },
     });
-    expect(count).toBe(5);
   });
 });
-

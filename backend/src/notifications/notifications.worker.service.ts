@@ -18,7 +18,9 @@ import { NOTIFICATION_DEFAULTS } from './notifications.constants';
 import { resolveRedisConnection } from '../common/utils/redis.util';
 
 @Injectable()
-export class NotificationsWorkerService implements OnModuleInit, OnModuleDestroy {
+export class NotificationsWorkerService
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(NotificationsWorkerService.name);
   private worker?: Worker<NotificationJob>;
   private connection?: IORedis;
@@ -63,6 +65,8 @@ export class NotificationsWorkerService implements OnModuleInit, OnModuleDestroy
         error.stack,
       );
     });
+
+    await this.worker.waitUntilReady();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -70,9 +74,14 @@ export class NotificationsWorkerService implements OnModuleInit, OnModuleDestroy
     await this.connection?.quit();
   }
 
-  private async handleNotificationJob(job: Job<NotificationJob>): Promise<void> {
+  private async handleNotificationJob(
+    job: Job<NotificationJob>,
+  ): Promise<void> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), NOTIFICATION_DEFAULTS.requestTimeoutMs);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      NOTIFICATION_DEFAULTS.requestTimeoutMs,
+    );
 
     try {
       const response = await fetch(job.data.webhookUrl, {
@@ -141,4 +150,3 @@ export class NotificationsWorkerService implements OnModuleInit, OnModuleDestroy
       : DEFAULT_QUEUE_NAMES[identifier];
   }
 }
-

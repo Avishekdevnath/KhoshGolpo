@@ -37,4 +37,3 @@ export class UpdateProfileDto {
   })
   handle?: string;
 }
-

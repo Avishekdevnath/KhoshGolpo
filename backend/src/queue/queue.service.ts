@@ -124,4 +124,3 @@ export class QueueService implements OnModuleDestroy {
       : DEFAULT_QUEUE_NAMES[identifier];
   }
 }
-

@@ -106,8 +106,11 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "coverageProvider": "v8",
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/auth/**/*.ts",
+      "src/threads/dto/list-threads.query.ts",
+      "src/common/utils/time.util.ts"
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"

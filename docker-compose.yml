@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  api:
+    build: ./backend
+    image: khoshgolpo-backend:latest
+    env_file:
+      - ./backend/.env
+    ports:
+      - '4000:4000'
+    depends_on:
+      - mongo
+      - redis
+
+  moderation-worker:
+    image: khoshgolpo-backend:latest
+    env_file:
+      - ./backend/.env
+    entrypoint: ['node', 'dist/ai/ai.worker.service.js']
+    depends_on:
+      - api
+      - mongo
+      - redis
+
+  notification-worker:
+    image: khoshgolpo-backend:latest
+    env_file:
+      - ./backend/.env
+    entrypoint: ['node', 'dist/notifications/notifications.worker.service.js']
+    depends_on:
+      - api
+      - mongo
+      - redis
+
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:4000}
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+
+volumes:
+  mongo-data:
+  redis-data:
+

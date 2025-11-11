@@ -118,6 +118,14 @@ These subsystems combine to keep conversations safe while preserving the immedia
 
 ---
 
+## Live Environments
+
+- **Frontend**: https://khoshgolpo-v1.vercel.app/
+- **Backend**: https://khoshgolpo.onrender.com
+- **API Docs (Swagger)**: https://khoshgolpo.onrender.com/docs
+
+---
+
 ## Prerequisites
 
 - Node.js **20.x** (with npm)
@@ -221,6 +229,27 @@ npm run start
 | frontend | `npm run dev` | Next.js dev server |
 | frontend | `npm run lint` | ESLint checks for frontend code |
 | frontend | `npm run build` | Production bundle |
+| frontend | `npm run test` | Vitest + Testing Library smoke tests |
+| backend | `npm run test:cov` | Jest test suite with focused coverage instrumentation |
+
+See `docs/test-plan.md` for the current coverage matrix across both applications.
+
+---
+
+## Docker & Compose
+
+To spin up the entire stack (API, workers, frontend, MongoDB, Redis) with one command:
+
+```bash
+docker compose up --build
+```
+
+Required files:
+
+- `backend/.env` – backend credentials (MongoDB, JWT, Redis, OpenAI, etc.)
+- `frontend/.env.local` – set `NEXT_PUBLIC_API_URL=http://api:4000`
+
+The compose file builds images from the local Dockerfiles. Workers reuse the backend image and will only start successfully when Redis/Mongo are reachable.
 
 ---
 
@@ -252,6 +281,15 @@ npm run start
 6. Open a pull request summarising intent, testing, and any deployment steps.
 
 Refer to the detailed plans, environment templates, and feature blueprints in the `guide/` directory for domain-specific context.
+
+---
+
+## Continuous Integration
+
+- `.github/workflows/backend-ci.yml` – installs backend dependencies, runs lint/tests/coverage, and (optionally) pings a Render deploy hook when `RENDER_DEPLOY_HOOK_URL` is provided.
+- `.github/workflows/frontend-ci.yml` – installs frontend dependencies, runs lint/build/tests, and (optionally) triggers a Vercel deploy hook via `VERCEL_DEPLOY_HOOK_URL`.
+
+Both workflows cache npm installs and run on pushes/pull requests that touch their respective workspaces.
 
 ---
 

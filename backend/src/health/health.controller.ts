@@ -29,4 +29,3 @@ export class HealthController {
     return this.health.check([() => this.prismaIndicator.pingCheck()]);
   }
 }
-

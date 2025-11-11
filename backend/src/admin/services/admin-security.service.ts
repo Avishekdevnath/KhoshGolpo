@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, SecurityEvent } from '@prisma/client';
 import { SecurityEventsService } from '../../security/security-events.service';
 import type { ListSecurityEventsQueryDto } from '../dto/list-security-events.query';
 import type { ListRateLimitQueryDto } from '../dto/list-rate-limit.query';
@@ -63,22 +63,33 @@ export class AdminSecurityService {
     const { windowMinutes, groupBy, filter } = query;
     const since = new Date(Date.now() - windowMinutes * 60 * 1000);
 
-    const events = await this.securityEventsService.listEvents({
-      where: {
-        type: 'rate_limit',
-        createdAt: { gte: since },
+    const events: SecurityEvent[] = await this.securityEventsService.listEvents(
+      {
+        where: {
+          type: 'rate_limit',
+          createdAt: { gte: since },
+        },
       },
-    });
+    );
 
-    const summary = new Map<string, { count: number; last: Date; sampleEndpoint?: string; sampleIp?: string; sampleUserId?: string }>();
+    const summary = new Map<
+      string,
+      {
+        count: number;
+        last: Date;
+        sampleEndpoint?: string;
+        sampleIp?: string;
+        sampleUserId?: string;
+      }
+    >();
 
     events.forEach((event) => {
       const key =
         groupBy === 'user'
-          ? event.userId ?? 'unknown'
+          ? (event.userId ?? 'unknown')
           : groupBy === 'ip'
-          ? event.ip ?? 'unknown'
-          : event.endpoint ?? 'unknown';
+            ? (event.ip ?? 'unknown')
+            : (event.endpoint ?? 'unknown');
 
       if (filter && key !== filter) {
         return;
@@ -123,4 +134,3 @@ export class AdminSecurityService {
     };
   }
 }
-

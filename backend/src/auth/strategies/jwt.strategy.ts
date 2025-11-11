@@ -25,7 +25,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User no longer exists.');
     }
 
-    const status = (user as typeof user & { status?: string }).status ?? 'active';
+    const status =
+      (user as typeof user & { status?: string }).status ?? 'active';
     if (status === 'banned') {
       throw new UnauthorizedException('Account has been banned.');
     }

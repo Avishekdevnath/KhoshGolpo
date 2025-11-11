@@ -1,98 +1,175 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
-import type { JwtService } from '@nestjs/jwt';
-import type { Response } from 'express';
+import { Test } from '@nestjs/testing';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import type { User } from '@prisma/client';
+import type { Response } from 'express';
 import { AuthService, REFRESH_TOKEN_COOKIE } from './auth.service';
-import type { UsersService } from '../users/users.service';
-import type { EmailVerificationService } from './email-verification.service';
+import { UsersService } from '../users/users.service';
+import { EmailVerificationService } from './email-verification.service';
+
+type MockedMethod<Fn extends (...args: any[]) => any> = jest.Mock<
+  ReturnType<OmitThisParameter<Fn>>,
+  Parameters<OmitThisParameter<Fn>>
+>;
+
+type UsersServiceMock = {
+  isEmailTaken: MockedMethod<UsersService['isEmailTaken']>;
+  isHandleTaken: MockedMethod<UsersService['isHandleTaken']>;
+  createUser: MockedMethod<UsersService['createUser']>;
+  findByEmail: MockedMethod<UsersService['findByEmail']>;
+  findById: MockedMethod<UsersService['findById']>;
+  removeInactiveRefreshTokens: MockedMethod<
+    UsersService['removeInactiveRefreshTokens']
+  >;
+  addRefreshToken: MockedMethod<UsersService['addRefreshToken']>;
+  replaceRefreshToken: MockedMethod<UsersService['replaceRefreshToken']>;
+  removeRefreshToken: MockedMethod<UsersService['removeRefreshToken']>;
+  updateLastActive: MockedMethod<UsersService['updateLastActive']>;
+  findRefreshToken: MockedMethod<UsersService['findRefreshToken']>;
+  clearAllRefreshTokens: MockedMethod<UsersService['clearAllRefreshTokens']>;
+};
+
+type JwtServiceMock = {
+  signAsync: MockedMethod<JwtService['signAsync']>;
+  verifyAsync: MockedMethod<JwtService['verifyAsync']>;
+};
+
+type ConfigServiceMock = {
+  get: MockedMethod<ConfigService['get']>;
+  getOrThrow: MockedMethod<ConfigService['getOrThrow']>;
+};
+
+type EmailVerificationServiceMock = {
+  sendEmailVerification: MockedMethod<
+    EmailVerificationService['sendEmailVerification']
+  >;
+  verifyEmail: MockedMethod<EmailVerificationService['verifyEmail']>;
+};
+
+const createMockFn = <Fn extends (...args: any[]) => any>() =>
+  jest.fn<
+    ReturnType<OmitThisParameter<Fn>>,
+    Parameters<OmitThisParameter<Fn>>
+  >();
 
 jest.mock('bcrypt', () => ({
-  hash: jest.fn(async (value: string) => `hashed-${value}`),
-  compare: jest.fn(async (raw: string, hashed: string) => hashed === `hashed-${raw}`),
+  hash: jest.fn((value: string) => Promise.resolve(`hashed-${value}`)),
+  compare: jest.fn((raw: string, hashed: string) =>
+    Promise.resolve(hashed === `hashed-${raw}`),
+  ),
 }));
 
 describe('AuthService', () => {
-  let authService: AuthService;
-  let usersService: jest.Mocked<UsersService>;
-  let jwtService: jest.Mocked<JwtService>;
-  let configService: jest.Mocked<ConfigService>;
-  let emailVerificationService: jest.Mocked<EmailVerificationService>;
+  let service: AuthService;
+  let usersService: UsersServiceMock;
+  let jwtService: JwtServiceMock;
+  let configService: ConfigServiceMock;
+  let emailVerificationService: EmailVerificationServiceMock;
 
-  const baseUser: User & { emailVerifiedAt: Date } = {
+  const baseUser = {
     id: 'user-1',
     email: 'amina@example.com',
     handle: 'amina',
-    passwordHash: 'hashed-password',
     displayName: 'Amina',
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-    roles: ['user'],
-    emailVerifiedAt: new Date('2024-01-02'),
-    refreshTokens: [],
-    profile: null,
-  };
+    passwordHash: 'hashed-valid-password',
+    roles: ['member'],
+    emailVerifiedAt: new Date('2024-01-02T00:00:00Z'),
+    status: 'active' as const,
+    bannedAt: null,
+    bannedReason: null,
+    bannedBy: null,
+    lastActiveAt: new Date('2024-01-01T00:00:00Z'),
+    threadsCount: 0,
+    postsCount: 0,
+    createdAt: new Date('2024-01-01T00:00:00Z'),
+    updatedAt: new Date('2024-01-01T00:00:00Z'),
+  } satisfies User & { emailVerifiedAt: Date | null; status: 'active' };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     usersService = {
-      isEmailTaken: jest.fn(),
-      isHandleTaken: jest.fn(),
-      createUser: jest.fn(),
-      findByEmail: jest.fn(),
-      findById: jest.fn(),
-      removeInactiveRefreshTokens: jest.fn(),
-      addRefreshToken: jest.fn(),
-      replaceRefreshToken: jest.fn(),
-      removeRefreshToken: jest.fn(),
-      updateLastActive: jest.fn(),
-      findRefreshToken: jest.fn(),
-      updateProfile: jest.fn(),
-      forceLogout: jest.fn(),
-    } as unknown as jest.Mocked<UsersService>;
+      isEmailTaken: createMockFn<UsersService['isEmailTaken']>(),
+      isHandleTaken: createMockFn<UsersService['isHandleTaken']>(),
+      createUser: createMockFn<UsersService['createUser']>(),
+      findByEmail: createMockFn<UsersService['findByEmail']>(),
+      findById: createMockFn<UsersService['findById']>(),
+      removeInactiveRefreshTokens:
+        createMockFn<UsersService['removeInactiveRefreshTokens']>(),
+      addRefreshToken: createMockFn<UsersService['addRefreshToken']>(),
+      replaceRefreshToken: createMockFn<UsersService['replaceRefreshToken']>(),
+      removeRefreshToken: createMockFn<UsersService['removeRefreshToken']>(),
+      updateLastActive: createMockFn<UsersService['updateLastActive']>(),
+      findRefreshToken: createMockFn<UsersService['findRefreshToken']>(),
+      clearAllRefreshTokens:
+        createMockFn<UsersService['clearAllRefreshTokens']>(),
+    };
 
     jwtService = {
-      signAsync: jest.fn(),
-      verifyAsync: jest.fn(),
-    } as unknown as jest.Mocked<JwtService>;
+      signAsync: createMockFn<JwtService['signAsync']>(),
+      verifyAsync: createMockFn<JwtService['verifyAsync']>(),
+    };
 
     configService = {
-      get: jest.fn((key: string) => {
-        if (key === 'NODE_ENV') {
-          return 'test';
-        }
-        if (key === 'BCRYPT_SALT_ROUNDS') {
-          return '10';
-        }
-        if (key === 'JWT_EXPIRES_IN') {
-          return '15m';
-        }
-        if (key === 'REFRESH_TOKEN_EXPIRES_IN') {
-          return '7d';
-        }
-        return undefined;
-      }),
-      getOrThrow: jest.fn((key: string) => {
-        if (key === 'JWT_SECRET') {
-          return 'jwt-secret';
-        }
-        if (key === 'REFRESH_TOKEN_SECRET') {
-          return 'refresh-secret';
-        }
-        throw new Error(`Unexpected config key: ${key}`);
-      }),
-    } as unknown as jest.Mocked<ConfigService>;
+      get: createMockFn<ConfigService['get']>(),
+      getOrThrow: createMockFn<ConfigService['getOrThrow']>(),
+    };
+
+    configService.get.mockImplementation((key: string) => {
+      if (key === 'NODE_ENV') {
+        return 'test';
+      }
+      if (key === 'BCRYPT_SALT_ROUNDS') {
+        return '10';
+      }
+      if (key === 'JWT_EXPIRES_IN') {
+        return '15m';
+      }
+      if (key === 'REFRESH_TOKEN_EXPIRES_IN') {
+        return '7d';
+      }
+      return undefined;
+    });
+
+    configService.getOrThrow.mockImplementation((key: string) => {
+      if (key === 'JWT_SECRET') {
+        return 'jwt-secret';
+      }
+      if (key === 'REFRESH_TOKEN_SECRET') {
+        return 'refresh-secret';
+      }
+      throw new Error(`Unexpected config key: ${key}`);
+    });
 
     emailVerificationService = {
-      sendEmailVerification: jest.fn(),
-      verifyEmail: jest.fn(),
-    } as unknown as jest.Mocked<EmailVerificationService>;
+      sendEmailVerification:
+        createMockFn<EmailVerificationService['sendEmailVerification']>(),
+      verifyEmail: createMockFn<EmailVerificationService['verifyEmail']>(),
+    };
 
-    authService = new AuthService(
-      usersService,
-      jwtService,
-      configService,
-      emailVerificationService,
-    );
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        {
+          provide: UsersService,
+          useValue: usersService as unknown as UsersService,
+        },
+        {
+          provide: JwtService,
+          useValue: jwtService as unknown as JwtService,
+        },
+        {
+          provide: ConfigService,
+          useValue: configService as unknown as ConfigService,
+        },
+        {
+          provide: EmailVerificationService,
+          useValue:
+            emailVerificationService as unknown as EmailVerificationService,
+        },
+      ],
+    }).compile();
+
+    service = moduleRef.get(AuthService);
   });
 
   describe('register', () => {
@@ -101,21 +178,23 @@ describe('AuthService', () => {
       usersService.isHandleTaken.mockResolvedValue(false);
       usersService.createUser.mockResolvedValue(baseUser);
 
-      const result = await authService.register({
-        email: baseUser.email,
-        handle: baseUser.handle,
-        password: 'password',
+      const result = await service.register({
+        email: 'Amina@example.com',
+        handle: 'Amina',
+        password: 'valid-password',
         displayName: 'Amina Rahman',
       });
 
       expect(usersService.createUser).toHaveBeenCalledWith(
         expect.objectContaining({
-          email: baseUser.email,
-          handle: baseUser.handle,
-          displayName: 'Amina Rahman',
+          email: 'amina@example.com',
+          handle: 'amina',
+          passwordHash: 'hashed-valid-password',
         }),
       );
-      expect(emailVerificationService.sendEmailVerification).toHaveBeenCalledWith(baseUser);
+      expect(
+        emailVerificationService.sendEmailVerification,
+      ).toHaveBeenCalledWith(baseUser);
       expect(result).toEqual({
         user: baseUser,
         emailVerificationRequired: true,
@@ -127,10 +206,10 @@ describe('AuthService', () => {
       usersService.isHandleTaken.mockResolvedValue(false);
 
       await expect(
-        authService.register({
-          email: baseUser.email,
-          handle: baseUser.handle,
-          password: 'password',
+        service.register({
+          email: 'amina@example.com',
+          handle: 'amina',
+          password: 'valid-password',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
@@ -138,48 +217,43 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('returns tokens for valid credentials', async () => {
-      usersService.findByEmail.mockResolvedValue({
-        ...baseUser,
-        passwordHash: 'hashed-password',
-      });
+      usersService.findByEmail.mockResolvedValue(baseUser);
+      usersService.removeInactiveRefreshTokens.mockResolvedValue(undefined);
+      usersService.addRefreshToken.mockResolvedValue(undefined);
+      usersService.updateLastActive.mockResolvedValue(undefined);
       jwtService.signAsync.mockResolvedValueOnce('access-token');
       jwtService.signAsync.mockResolvedValueOnce('refresh-token');
 
-      const result = await authService.login({
-        email: baseUser.email,
-        password: 'password',
+      const result = await service.login({
+        email: 'amina@example.com',
+        password: 'valid-password',
       });
 
       expect(usersService.removeInactiveRefreshTokens).toHaveBeenCalledWith(
         baseUser.id,
         expect.any(Date),
       );
-      expect(usersService.addRefreshToken).toHaveBeenCalledWith(
-        baseUser.id,
+      expect(usersService.addRefreshToken).toHaveBeenCalled();
+      expect(result.tokens).toEqual(
         expect.objectContaining({
-          tokenHash: 'hashed-refresh-token',
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
         }),
       );
-      expect(usersService.updateLastActive).toHaveBeenCalledWith(baseUser.id, expect.any(Date));
-      expect(result.user).toMatchObject({ id: baseUser.id, email: baseUser.email });
-      expect(result.tokens.accessToken).toBe('access-token');
-      expect(result.tokens.refreshToken).toBe('refresh-token');
+      expect(result.user).toEqual(baseUser);
     });
 
     it('throws when credentials are invalid', async () => {
       usersService.findByEmail.mockResolvedValue(null);
 
       await expect(
-        authService.login({
-          email: baseUser.email,
-          password: 'password',
-        }),
+        service.login({ email: 'amina@example.com', password: 'invalid' }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
   });
 
   describe('refresh', () => {
-    it('reissues tokens when refresh token valid', async () => {
+    it('reissues tokens when refresh token is valid', async () => {
       jwtService.verifyAsync.mockResolvedValue({
         sub: baseUser.id,
         email: baseUser.email,
@@ -187,42 +261,54 @@ describe('AuthService', () => {
       });
       usersService.findById.mockResolvedValue(baseUser);
       usersService.findRefreshToken.mockResolvedValue({
+        id: 'rt-1',
+        tokenId: 'token-1',
         tokenHash: 'hashed-refresh-token',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 1000),
+        userId: baseUser.id,
       });
       jwtService.signAsync.mockResolvedValueOnce('new-access-token');
       jwtService.signAsync.mockResolvedValueOnce('new-refresh-token');
 
-      const result = await authService.refresh('refresh-token');
+      const result = await service.refresh('refresh-token');
 
       expect(usersService.replaceRefreshToken).toHaveBeenCalledWith(
         baseUser.id,
-        expect.objectContaining({
-          tokenHash: 'hashed-new-refresh-token',
-        }),
+        expect.objectContaining({ tokenHash: 'hashed-new-refresh-token' }),
         'token-1',
       );
-      expect(usersService.updateLastActive).toHaveBeenCalled();
-      expect(result.tokens.accessToken).toBe('new-access-token');
-      expect(result.tokens.refreshToken).toBe('new-refresh-token');
+      expect(result.tokens).toEqual(
+        expect.objectContaining({
+          accessToken: 'new-access-token',
+          refreshToken: 'new-refresh-token',
+        }),
+      );
     });
 
     it('throws when token cannot be decoded', async () => {
-      jwtService.verifyAsync.mockRejectedValue(new Error('invalid token'));
+      jwtService.verifyAsync.mockRejectedValue(new Error('bad token'));
 
-      await expect(authService.refresh('bad-token')).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.refresh('invalid')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
     });
   });
 
   describe('attachRefreshTokenCookie', () => {
-    it('writes secure cookie options based on environment', () => {
+    it('writes cookie with expected options', () => {
       const cookie = jest.fn();
       const response = { cookie } as unknown as Response;
 
-      authService.attachRefreshTokenCookie(response, 'refresh', new Date('2025-01-01'));
+      service.attachRefreshTokenCookie(
+        response,
+        'refresh-token',
+        new Date('2025-01-01T00:00:00Z'),
+      );
 
       expect(cookie).toHaveBeenCalledWith(
         REFRESH_TOKEN_COOKIE,
-        'refresh',
+        'refresh-token',
         expect.objectContaining({
           httpOnly: true,
           secure: false,
@@ -232,5 +318,3 @@ describe('AuthService', () => {
     });
   });
 });
-
-

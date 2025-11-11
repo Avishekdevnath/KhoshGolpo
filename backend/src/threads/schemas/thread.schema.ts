@@ -8,7 +8,7 @@ import {
   IsString,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import type { Thread, ThreadStatus } from '@prisma/client';
+import type { Thread, ThreadStatus } from '@prisma/client/index';
 
 const THREAD_STATUS_VALUES: ThreadStatus[] = ['open', 'locked', 'archived'];
 

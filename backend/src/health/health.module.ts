@@ -10,4 +10,3 @@ import { PrismaModule } from '../prisma/prisma.module';
   providers: [PrismaHealthIndicator],
 })
 export class HealthModule {}
-

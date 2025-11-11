@@ -9,7 +9,10 @@ export class AppController {
 
   @Get()
   @ApiOperation({ summary: 'Service welcome endpoint.' })
-  @ApiOkResponse({ description: 'Returns a simple service greeting.', type: String })
+  @ApiOkResponse({
+    description: 'Returns a simple service greeting.',
+    type: String,
+  })
   getHello(): string {
     return this.appService.getHello();
   }

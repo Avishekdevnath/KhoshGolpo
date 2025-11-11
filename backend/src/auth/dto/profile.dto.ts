@@ -1,4 +1,4 @@
-import type { User } from '@prisma/client';
+import type { User } from '@prisma/client/index';
 import { UserSchema } from '../../users/schemas/user.schema';
 
 export class ProfileDto extends UserSchema {

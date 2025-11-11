@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum } from 'class-validator';
-import type { ThreadStatus } from '@prisma/client';
+import type { ThreadStatus } from '@prisma/client/index';
 
 const THREAD_STATUS_VALUES: ThreadStatus[] = ['open', 'locked', 'archived'];
 
@@ -15,4 +15,3 @@ export class UpdateThreadStatusDto {
   })
   status!: ThreadStatus;
 }
-

@@ -97,5 +97,3 @@ export function resolveRedisConnection(
 
   return { url, options };
 }
-
-

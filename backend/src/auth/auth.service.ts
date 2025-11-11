@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import type { Response } from 'express';
-import type { User } from '@prisma/client';
+import type { User } from '@prisma/client/index';
 import { calculateExpiryDate } from '../common/utils/time.util';
 import type {
   JwtPayload,
@@ -173,7 +173,10 @@ export class AuthService {
   }
 
   async verifyEmail(tokenId: string, token: string): Promise<AuthResult> {
-    const user = await this.emailVerificationService.verifyEmail(tokenId, token);
+    const user = await this.emailVerificationService.verifyEmail(
+      tokenId,
+      token,
+    );
     const tokens = await this.issueTokens(user);
     await this.persistRefreshToken(user.id, tokens);
     await this.usersService.updateLastActive(user.id, new Date());

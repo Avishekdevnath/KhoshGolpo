@@ -1,4 +1,3 @@
-
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -55,8 +54,8 @@ import { SecurityModule } from './security/security.module';
       useFactory: (configService: ConfigService) => [
         {
           ttl:
-            (configService.get<number>('RATE_LIMIT_WINDOW_MS') ??
-              60_000) / 1000, // Convert ms to seconds
+            (configService.get<number>('RATE_LIMIT_WINDOW_MS') ?? 60_000) /
+            1000, // Convert ms to seconds
           limit: configService.get<number>('RATE_LIMIT_MAX_REQUESTS') ?? 120,
         },
       ],

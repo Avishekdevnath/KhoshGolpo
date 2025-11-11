@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Server, Socket } from 'socket.io';
+import type { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { ThreadSchema } from '../threads/schemas/thread.schema';
 import { PostSchema } from '../posts/schemas/post.schema';
-import type { Thread, Post, Prisma } from '@prisma/client';
+import type { Thread, Prisma } from '@prisma/client/index';
 import { NotificationSchema } from '../notifications/schemas/notification.schema';
 
 export interface NotificationRecord {
@@ -16,56 +16,141 @@ export interface NotificationRecord {
   updatedAt: Date;
 }
 
+type ReactionType = 'upvote' | 'downvote';
+
+export interface SocketData {
+  userId?: string;
+}
+
+export type AppServer = Server<
+  DefaultEventsMap,
+  DefaultEventsMap,
+  DefaultEventsMap,
+  SocketData
+>;
+
+export type AppSocket = Socket<
+  DefaultEventsMap,
+  DefaultEventsMap,
+  DefaultEventsMap,
+  SocketData
+>;
+
+interface PostPayload {
+  id: string;
+  threadId: string;
+  authorId: string;
+  body: string;
+  mentions?: string[] | null;
+  parentPostId?: string | null;
+  moderationState: string;
+  moderationFeedback?: string | null;
+  upvotesCount?: number | null;
+  downvotesCount?: number | null;
+  repliesCount?: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PostReactionBroadcast {
+  threadId: string;
+  postId: string;
+  upvotesCount: number;
+  downvotesCount: number;
+  userId: string;
+  reaction: ReactionType | null;
+}
+
 @Injectable()
 export class RealtimeService {
   private readonly logger = new Logger(RealtimeService.name);
-  private server?: Server;
+  private server?: AppServer;
 
-  setServer(server: Server): void {
+  setServer(server: AppServer): void {
     this.server = server;
   }
 
-  registerUserSocket(client: Socket, userId: string): void {
+  registerUserSocket(client: AppSocket, userId: string): void {
     client.data.userId = userId;
-    client.join(this.buildUserRoom(userId));
+    void client.join(this.buildUserRoom(userId));
     this.logger.debug(`Socket ${client.id} registered for user ${userId}`);
   }
 
-  unregisterSocket(client: Socket): void {
-    const userId = client.data.userId as string | undefined;
+  unregisterSocket(client: AppSocket): void {
+    const userId = client.data.userId;
     if (userId) {
       this.logger.debug(`Socket ${client.id} disconnected for user ${userId}`);
     }
   }
 
-  joinThreadRoom(client: Socket, threadId: string): void {
-    client.join(this.buildThreadRoom(threadId));
+  joinThreadRoom(client: AppSocket, threadId: string): void {
+    void client.join(this.buildThreadRoom(threadId));
   }
 
-  leaveThreadRoom(client: Socket, threadId: string): void {
-    client.leave(this.buildThreadRoom(threadId));
+  leaveThreadRoom(client: AppSocket, threadId: string): void {
+    void client.leave(this.buildThreadRoom(threadId));
   }
 
-  emitThreadCreated(thread: Thread, firstPost: Post): void {
+  emitThreadCreated(thread: Thread, firstPost: PostPayload): void {
     if (!this.server) {
       return;
     }
     this.server.emit('thread.created', {
       thread: ThreadSchema.fromModel(thread),
-      firstPost: PostSchema.fromModel(firstPost),
+      firstPost: PostSchema.fromModel({ ...firstPost }),
     });
   }
 
-  emitPostCreated(threadId: string, post: Post): void {
+  emitPostCreated(threadId: string, post: PostPayload): void {
     if (!this.server) {
       return;
     }
     this.server
       .to(this.buildThreadRoom(threadId))
-      .emit('post.created', { post: PostSchema.fromModel(post) });
+      .emit('post.created', { post: PostSchema.fromModel({ ...post }) });
     this.server.emit('post.created.global', {
       threadId,
-      post: PostSchema.fromModel(post),
+      post: PostSchema.fromModel({ ...post }),
+    });
+  }
+
+  emitPostUpdated(threadId: string, post: PostPayload): void {
+    if (!this.server) {
+      return;
+    }
+    this.server
+      .to(this.buildThreadRoom(threadId))
+      .emit('post.updated', { post: PostSchema.fromModel({ ...post }) });
+  }
+
+  emitPostReaction(payload: PostReactionBroadcast): void {
+    if (!this.server) {
+      return;
+    }
+    this.server
+      .to(this.buildThreadRoom(payload.threadId))
+      .emit('post.reaction', payload);
+    this.server
+      .to(this.buildUserRoom(payload.userId))
+      .emit('post.reaction.personal', payload);
+  }
+
+  emitPostMention(
+    threadId: string,
+    post: PostPayload,
+    userIds: string[],
+  ): void {
+    if (!this.server || userIds.length === 0) {
+      return;
+    }
+    const payload = {
+      threadId,
+      post: PostSchema.fromModel({ ...post }),
+    };
+    userIds.forEach((userId) => {
+      this.server
+        ?.to(this.buildUserRoom(userId))
+        .emit('post.mentioned', payload);
     });
   }
 
@@ -92,4 +177,3 @@ export class RealtimeService {
     return `thread:${threadId}`;
   }
 }
-

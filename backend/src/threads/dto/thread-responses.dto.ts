@@ -2,6 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { ThreadSchema } from '../schemas/thread.schema';
 import { PostSchema } from '../../posts/schemas/post.schema';
 
+type ReactionType = 'upvote' | 'downvote';
+
 export class PaginationMetaDto {
   @ApiProperty({ example: 1, minimum: 1 })
   page!: number;
@@ -45,3 +47,15 @@ export class CreatePostResponseDto {
   post!: PostSchema;
 }
 
+export class UpdatePostResponseDto {
+  @ApiProperty({ type: () => PostSchema })
+  post!: PostSchema;
+}
+
+export class ReactPostResponseDto {
+  @ApiProperty({ type: () => PostSchema })
+  post!: PostSchema;
+
+  @ApiProperty({ enum: ['upvote', 'downvote'], nullable: true })
+  reaction!: ReactionType | null;
+}
