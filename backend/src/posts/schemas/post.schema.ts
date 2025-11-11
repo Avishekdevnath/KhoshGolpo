@@ -3,6 +3,13 @@ import { IsArray, IsDate, IsIn, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import type { ModerationState } from '@prisma/client/index';
 
+type PostAuthorRecord = {
+  id: string;
+  handle?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+};
+
 type PostRecord = {
   id: string;
   threadId: string;
@@ -17,6 +24,7 @@ type PostRecord = {
   repliesCount?: number | null;
   createdAt: Date;
   updatedAt: Date;
+  author?: PostAuthorRecord;
 };
 
 const MODERATION_STATES: ModerationState[] = [
@@ -25,6 +33,51 @@ const MODERATION_STATES: ModerationState[] = [
   'flagged',
   'rejected',
 ];
+
+export class PostAuthorSchema {
+  @ApiProperty({ example: '65efe051b1a338de7f458ad4' })
+  @IsString()
+  id!: string;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'jane_doe',
+  })
+  @IsOptional()
+  @IsString()
+  handle?: string | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'Jane Doe',
+  })
+  @IsOptional()
+  @IsString()
+  displayName?: string | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'https://cdn.example.com/avatar.png',
+  })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string | null;
+
+  static fromModel(
+    author: PostAuthorRecord | undefined,
+    fallbackAuthorId: string,
+  ): PostAuthorSchema {
+    const schema = new PostAuthorSchema();
+    schema.id = author?.id ?? fallbackAuthorId;
+    schema.handle = author?.handle ?? null;
+    schema.displayName = author?.displayName ?? null;
+    schema.avatarUrl = author?.avatarUrl ?? null;
+    return schema;
+  }
+}
 
 export class PostSchema {
   @ApiProperty({ example: '65f1c0c2d4f1b4f1c0c2d4f9' })
@@ -92,6 +145,9 @@ export class PostSchema {
   @IsDate()
   updatedAt!: Date;
 
+  @ApiProperty({ type: () => PostAuthorSchema })
+  author!: PostAuthorSchema;
+
   static fromModel(post: Record<string, unknown>): PostSchema {
     const record = post as PostRecord;
     const schema = new PostSchema();
@@ -108,6 +164,7 @@ export class PostSchema {
     schema.moderationFeedback = record.moderationFeedback ?? undefined;
     schema.createdAt = record.createdAt;
     schema.updatedAt = record.updatedAt;
+    schema.author = PostAuthorSchema.fromModel(record.author, record.authorId);
     return schema;
   }
 }

@@ -8,11 +8,19 @@ export interface ThreadPreviewPost {
   updatedAt: string;
 }
 
+export interface ThreadAuthor {
+  id: string;
+  handle?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}
+
 export interface Thread {
   id: string;
   title: string;
   slug: string;
   authorId: string;
+  author?: ThreadAuthor | null;
   tags: string[];
   status: 'open' | 'locked' | 'archived';
   summary?: string | null;
@@ -26,10 +34,18 @@ export interface Thread {
   firstPostPreview?: ThreadPreviewPost | null;
 }
 
+export interface PostAuthor {
+  id: string;
+  handle?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}
+
 export interface Post {
   id: string;
   threadId: string;
   authorId: string;
+  author?: PostAuthor | null;
   body: string;
   mentions: string[];
   parentPostId?: string | null;
@@ -69,11 +85,16 @@ export interface CreatePostPayload {
   parentPostId?: string;
 }
 
+export interface UpdatePostPayload {
+  body: string;
+}
+
 export interface ListThreadsQuery {
   page?: number;
   limit?: number;
   status?: 'open' | 'locked' | 'archived';
   search?: string;
+  tag?: string;
 }
 
 export async function listThreads(
@@ -85,6 +106,7 @@ export async function listThreads(
   if (query.limit) params.set('limit', String(query.limit));
   if (query.status) params.set('status', query.status);
   if (query.search) params.set('search', query.search);
+  if (query.tag) params.set('tag', query.tag);
 
   const queryString = params.toString();
   const path = `/threads${queryString ? `?${queryString}` : ''}`;
@@ -137,6 +159,19 @@ export async function createPost(
   });
 }
 
+export async function updatePost(
+  threadId: string,
+  postId: string,
+  payload: UpdatePostPayload,
+  accessToken: string,
+): Promise<{ post: Post }> {
+  return apiFetch<{ post: Post }, UpdatePostPayload>(`/threads/${threadId}/posts/${postId}`, {
+    method: 'PATCH',
+    body: payload,
+    accessToken,
+  });
+}
+
 export async function deletePost(
   threadId: string,
   postId: string,
@@ -151,6 +186,56 @@ export async function deletePost(
 export async function deleteThread(threadId: string, accessToken: string): Promise<void> {
   await apiFetch<void>(`/threads/${threadId}`, {
     method: 'DELETE',
+    accessToken,
+  });
+}
+
+export async function archiveThread(threadId: string, accessToken: string): Promise<void> {
+  await apiFetch<void>(`/threads/${threadId}/archive`, {
+    method: 'PATCH',
+    accessToken,
+  });
+}
+
+export async function unarchiveThread(threadId: string, accessToken: string): Promise<void> {
+  await apiFetch<void>(`/threads/${threadId}/unarchive`, {
+    method: 'PATCH',
+    accessToken,
+  });
+}
+
+export async function listThreadsByAuthor(
+  userId: string,
+  query: ListThreadsQuery = {},
+  accessToken: string | null,
+): Promise<PaginatedThreads> {
+  const params = new URLSearchParams();
+  if (query.page) params.set('page', String(query.page));
+  if (query.limit) params.set('limit', String(query.limit));
+  if (query.status) params.set('status', query.status);
+
+  const queryString = params.toString();
+  const path = `/users/${userId}/threads${queryString ? `?${queryString}` : ''}`;
+
+  return apiFetch<PaginatedThreads>(path, {
+    method: 'GET',
+    accessToken,
+  });
+}
+
+export async function listMyThreads(
+  query: ListThreadsQuery = {},
+  accessToken: string,
+): Promise<PaginatedThreads> {
+  const params = new URLSearchParams();
+  if (query.page) params.set('page', String(query.page));
+  if (query.limit) params.set('limit', String(query.limit));
+  if (query.status) params.set('status', query.status);
+
+  const queryString = params.toString();
+
+  return apiFetch<PaginatedThreads>(`/users/me/threads${queryString ? `?${queryString}` : ''}`, {
+    method: 'GET',
     accessToken,
   });
 }

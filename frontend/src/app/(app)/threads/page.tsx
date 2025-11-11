@@ -1,68 +1,164 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Filter, Flame, Loader2, MessageCircle, Search } from "lucide-react";
 
+import { CreateThreadModal } from "@/components/threads/create-thread-modal";
+import { buildPreview, statusStyles, THREADS_PER_PAGE } from "@/components/threads/thread-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { useThreads } from "@/lib/api/hooks/threads";
-import { CreateThreadModal } from "@/components/threads/create-thread-modal";
 import { formatRelativeTime } from "@/lib/utils/date";
-
-const statusStyles: Record<string, string> = {
-  open: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200",
-  locked:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-300",
-  archived:
-    "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300",
-};
+import { cn } from "@/lib/utils";
+import { useDebounce } from "@/lib/hooks/use-debounce";
 
 const statusOptions = ["all", "open", "locked", "archived"] as const;
 
-const THREADS_PER_PAGE = 10;
-
-const PREVIEW_CHAR_LIMIT = 280;
-
-function buildPreview(text?: string | null) {
-  if (!text) {
-    return "";
-  }
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (!normalized.length) {
-    return "";
-  }
-  if (normalized.length <= PREVIEW_CHAR_LIMIT) {
-    return normalized;
-  }
-  return `${normalized.slice(0, PREVIEW_CHAR_LIMIT).trimEnd()}…`;
-}
-
 export default function ThreadsPage() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search.trim());
-  const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>("all");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const getInitialStatus = () => {
+    const statusParam = searchParams.get("status");
+    return statusOptions.includes(statusParam as (typeof statusOptions)[number])
+      ? (statusParam as (typeof statusOptions)[number])
+      : "all";
+  };
+
+  const getInitialPage = () => {
+    const pageParam = Number(searchParams.get("page") ?? "1");
+    return Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+  };
+
+  const [page, setPage] = useState(getInitialPage);
+  const initialSearch = searchParams.get("search") ?? searchParams.get("q") ?? "";
+  const [search, setSearch] = useState(initialSearch);
+  const debouncedSearch = useDebounce(search.trim(), 300);
+  const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>(getInitialStatus);
+  const [tag, setTag] = useState(searchParams.get("tag") ?? "");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const threadsQuery = useMemo(
-    () => ({
-      page,
-      limit: THREADS_PER_PAGE,
-      status: statusFilter !== "all" ? (statusFilter as "open" | "locked" | "archived") : undefined,
-      search: deferredSearch || undefined,
-    }),
-    [deferredSearch, page, statusFilter],
+  const debouncedTag = useDebounce(tag.trim(), 300);
+  const hasActiveSearch = !!debouncedSearch;
+  const hasActiveTag = !!debouncedTag;
+  const hasActiveFilters = hasActiveSearch || hasActiveTag;
+
+  useEffect(() => {
+    const statusParam = searchParams.get("status");
+    const nextStatus = statusOptions.includes(statusParam as (typeof statusOptions)[number])
+      ? (statusParam as (typeof statusOptions)[number])
+      : "all";
+
+    const nextSearch = searchParams.get("search") ?? searchParams.get("q") ?? "";
+    const nextTag = searchParams.get("tag") ?? "";
+    const nextPageParam = Number(searchParams.get("page") ?? "1");
+    const safePage = Number.isFinite(nextPageParam) && nextPageParam > 0 ? nextPageParam : 1;
+
+    queueMicrotask(() => {
+      setStatusFilter((current) => (current === nextStatus ? current : nextStatus));
+      setSearch((current) => (current === nextSearch ? current : nextSearch));
+      setTag((current) => (current === nextTag ? current : nextTag));
+      setPage((current) => (current === safePage ? current : safePage));
+    });
+  }, [searchParams]);
+
+  const updateQueryParams = useCallback(
+    (updates: Record<string, string | number | undefined>) => {
+      const current = searchParams.toString();
+      const params = new URLSearchParams(current);
+
+      // Remove legacy query param key if present
+      params.delete("q");
+
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === "" || (typeof value === "number" && value <= 0)) {
+          params.delete(key);
+        } else {
+          params.set(key, String(value));
+        }
+      });
+
+      const next = params.toString();
+      if (next === current) {
+        return;
+      }
+
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
   );
 
-  const { data, error, isLoading, isValidating } = useThreads(threadsQuery);
+  const threadsQuery = useMemo(() => {
+    const limit = hasActiveFilters ? Math.max(THREADS_PER_PAGE, 50) : THREADS_PER_PAGE;
+
+    return {
+      page,
+      limit,
+      status: statusFilter !== "all" ? (statusFilter as "open" | "locked" | "archived") : undefined,
+      search: debouncedSearch || undefined,
+      tag: debouncedTag || undefined,
+    };
+  }, [debouncedSearch, debouncedTag, hasActiveFilters, page, statusFilter]);
+
+  useEffect(() => {
+    updateQueryParams({
+      page: page > 1 ? page : undefined,
+      status: statusFilter !== "all" ? statusFilter : undefined,
+      search: debouncedSearch || undefined,
+      tag: debouncedTag || undefined,
+    });
+  }, [debouncedSearch, debouncedTag, page, statusFilter, updateQueryParams]);
+
+  const { data, error, isLoading, isValidating } = useThreads(threadsQuery, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 30_000,
+  });
 
   const threads = data?.data ?? [];
   const pagination = data?.pagination;
-  const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.limit)) : 1;
 
-  const showEmpty = !isLoading && !threads.length;
+  const normalizedSearch = useMemo(() => debouncedSearch.toLowerCase(), [debouncedSearch]);
+  const normalizedTag = useMemo(() => debouncedTag.toLowerCase(), [debouncedTag]);
+
+  const filteredThreads = useMemo(
+    () =>
+      threads.filter((thread) => {
+        const matchesTag = normalizedTag
+          ? thread.tags?.some((threadTag) => threadTag.toLowerCase().includes(normalizedTag))
+          : true;
+
+        if (!matchesTag) {
+          return false;
+        }
+
+        if (!normalizedSearch) {
+          return true;
+        }
+
+        const searchFields = [
+          thread.title,
+          thread.summary ?? undefined,
+          thread.firstPostPreview?.body ?? undefined,
+          thread.author?.displayName ?? undefined,
+          thread.author?.handle ? `@${thread.author.handle}` : undefined,
+          ...(thread.tags ?? []),
+        ];
+
+        return searchFields.some((field) => field?.toLowerCase().includes(normalizedSearch));
+      }),
+    [normalizedSearch, normalizedTag, threads],
+  );
+
+  const visibleThreads = hasActiveFilters ? filteredThreads : threads;
+  const effectiveLimit = pagination?.limit ?? THREADS_PER_PAGE;
+  const effectiveTotal = hasActiveFilters ? filteredThreads.length : pagination?.total ?? threads.length;
+  const totalPages = Math.max(1, Math.ceil(effectiveTotal / effectiveLimit));
+
+  const showEmpty = !isLoading && !visibleThreads.length;
   const showError = !isLoading && !!error;
 
   return (
@@ -91,7 +187,7 @@ export default function ThreadsPage() {
 
         <div className="rounded-3xl border border-border/80 bg-card/90 pb-6 shadow-lg shadow-slate-200/30 transition-colors dark:border-slate-800/70 dark:bg-slate-950/70 dark:shadow-slate-950/40">
           <div className="flex flex-col gap-3 border-b border-border/70 px-6 py-4 transition-colors dark:border-slate-800/70 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-1 items-center gap-3">
+            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative flex-1 rounded-xl border border-border/60 bg-secondary/60 px-3 py-2 text-sm text-muted-foreground shadow-inner shadow-slate-200/40 transition-colors dark:border-slate-800/70 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-slate-900/70">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                 <Input
@@ -102,6 +198,17 @@ export default function ThreadsPage() {
                   }}
                   placeholder="Search for threads, tags, or participants"
                   className="border-none bg-transparent pl-10 text-sm text-muted-foreground placeholder:text-muted-foreground focus-visible:ring-0 dark:text-slate-200"
+                />
+              </div>
+              <div className="relative w-full rounded-xl border border-border/60 bg-secondary/60 px-3 py-2 text-sm text-muted-foreground shadow-inner shadow-slate-200/40 transition-colors dark:border-slate-800/70 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-slate-900/70 sm:w-56">
+                <Input
+                  value={tag}
+                  onChange={(event) => {
+                    setTag(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Filter by tag"
+                  className="border-none bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground focus-visible:ring-0 dark:text-slate-200"
                 />
               </div>
               <Button
@@ -156,13 +263,15 @@ export default function ThreadsPage() {
               </div>
             )}
 
-            {threads.map((thread) => {
+            {visibleThreads.map((thread) => {
               const statusLabel = thread.status ?? "open";
               const statusClass =
                 statusStyles[statusLabel] ??
                 "border border-border/60 bg-secondary/60 text-muted-foreground dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300";
 
               const preview = buildPreview(thread.firstPostPreview?.body);
+              const authorDisplayName = thread.author?.displayName?.trim();
+              const authorHandle = thread.author?.handle ? `@${thread.author.handle}` : null;
 
               return (
                 <Link key={thread.id} href={`/threads/${thread.id}`} className="block">
@@ -175,6 +284,17 @@ export default function ThreadsPage() {
                           <span>{formatRelativeTime(thread.lastActivityAt)}</span>
                         </div>
                         <h2 className="text-lg font-semibold text-slate-900 transition-colors dark:text-white">{thread.title}</h2>
+                        {(authorDisplayName || authorHandle) && (
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span>By {authorDisplayName ?? authorHandle}</span>
+                            {authorDisplayName && authorHandle && (
+                              <>
+                                <span>•</span>
+                                <span>{authorHandle}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
                         {preview ? (
                           <p className="max-w-3xl text-sm text-muted-foreground">{preview}</p>
                         ) : (
@@ -183,6 +303,8 @@ export default function ThreadsPage() {
                           </p>
                         )}
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span>{thread.postsCount} posts</span>
+                          <span>•</span>
                           <span>{thread.participantsCount} participants</span>
                           <span>•</span>
                           <span>Updated {formatRelativeTime(thread.updatedAt)}</span>
@@ -216,11 +338,21 @@ export default function ThreadsPage() {
             })}
           </div>
 
-          {threads.length > 0 && pagination && (
+          {visibleThreads.length > 0 && pagination && (
             <div className="mt-6 flex items-center justify-between border-t border-border/70 px-6 pt-4 text-sm text-muted-foreground transition-colors dark:border-slate-800/70">
               <span>
-                Showing {(pagination.page - 1) * pagination.limit + 1}-
-                {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+                {hasActiveFilters ? (
+                  <>
+                    Showing {visibleThreads.length} result{visibleThreads.length === 1 ? "" : "s"}
+                    {hasActiveSearch ? ` for "${search.trim()}"` : ""}
+                    {hasActiveTag ? ` matching tag "${tag.trim()}"` : ""}
+                  </>
+                ) : (
+                  <>
+                    Showing {(pagination.page - 1) * pagination.limit + 1}-
+                    {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+                  </>
+                )}
               </span>
               <div className="flex items-center gap-2">
                 <Button

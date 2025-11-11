@@ -222,6 +222,9 @@ POST /auth/register
 | Method | Endpoint | Auth | Description |
 | --- | --- | --- | --- |
 | PATCH | `/users/me` | Bearer access token | Update authenticated user profile (display name, bio, avatar URL, locale, etc.). |
+| GET | `/users/search` | Bearer access token | Search users by handle/display name; supports `query`, `limit`, `status`, `role`. |
+| GET | `/users/me/threads` | Bearer access token | Paginated list of threads authored by the current user (`page`, `limit`, `status`). |
+| GET | `/users/:userId/threads` | Optional | Paginated list of threads authored by the specified user. |
 
 Request payload mirrors `UpdateProfileDto`. Fields are optional and validated via class-validator.
 
@@ -229,10 +232,14 @@ Request payload mirrors `UpdateProfileDto`. Fields are optional and validated vi
 
 | Method | Endpoint | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/threads` | Optional | Paginated list of threads. Supports `page`, `limit`, `search`, `tags`, `authorId`, `sort`. |
+| GET | `/threads` | Optional | Paginated list of threads. Supports `page`, `limit`, `status`. |
+| GET | `/threads/search` | Optional | Search threads by keyword (`q`), tag (`tag`), and status with pagination. |
 | POST | `/threads` | Bearer access token | Create a thread and initial post. Triggers AI moderation + realtime broadcast. |
 | GET | `/threads/:threadId` | Optional | Fetch thread detail with paginated posts (`page`, `limit`). |
 | POST | `/threads/:threadId/posts` | Bearer access token | Add a post to an existing thread. Publishes notifications and moderation job. |
+| PATCH | `/threads/:threadId/archive` | Bearer access token | Archive a thread you own (status set to `archived`). |
+| PATCH | `/threads/:threadId/unarchive` | Bearer access token | Re-open an archived thread you own (status set to `open`). |
+| DELETE | `/threads/:threadId` | Bearer access token | Delete a thread you own (removes all posts). |
 
 **Create thread request**
 

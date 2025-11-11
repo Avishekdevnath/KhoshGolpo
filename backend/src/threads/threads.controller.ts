@@ -22,8 +22,10 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ThreadStatus } from '@prisma/client/index';
 import { ThreadsService } from './threads.service';
 import { ListThreadsQueryDto } from './dto/list-threads.query';
+import { ThreadSearchQueryDto } from './dto/thread-search.query';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import {
@@ -61,6 +63,44 @@ export class ThreadsController {
   @Get()
   async listThreads(@Query() query: ListThreadsQueryDto) {
     const result = await this.threadsService.listThreads(query);
+
+    return {
+      data: result.data.map((thread) => ThreadSchema.fromModel(thread)),
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+      },
+    };
+  }
+
+  @ApiOperation({
+    summary: 'Search threads by keyword, tag, or status.',
+    description:
+      'Returns a paginated list of threads matching the provided filters.',
+  })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description: 'Keyword to match in title or initial post body.',
+  })
+  @ApiQuery({
+    name: 'tag',
+    required: false,
+    description: 'Filter threads containing a specific tag.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['open', 'locked', 'archived'],
+  })
+  @ApiOkResponse({
+    description: 'Threads retrieved successfully.',
+    type: ThreadListResponseDto,
+  })
+  @Get('search')
+  async searchThreads(@Query() query: ThreadSearchQueryDto) {
+    const result = await this.threadsService.searchThreads(query);
 
     return {
       data: result.data.map((thread) => ThreadSchema.fromModel(thread)),
@@ -262,5 +302,39 @@ export class ThreadsController {
     @CurrentUser() user: ActiveUser,
   ): Promise<void> {
     await this.threadsService.deleteThread(user, threadId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Archive your own thread.' })
+  @ApiNoContentResponse({ description: 'Thread archived successfully.' })
+  @Patch(':threadId/archive')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async archiveThread(
+    @Param('threadId') threadId: string,
+    @CurrentUser() user: ActiveUser,
+  ): Promise<void> {
+    await this.threadsService.updateThreadStatusByOwner(
+      user,
+      threadId,
+      ThreadStatus.archived,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Unarchive your own thread.' })
+  @ApiNoContentResponse({ description: 'Thread unarchived successfully.' })
+  @Patch(':threadId/unarchive')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async unarchiveThread(
+    @Param('threadId') threadId: string,
+    @CurrentUser() user: ActiveUser,
+  ): Promise<void> {
+    await this.threadsService.updateThreadStatusByOwner(
+      user,
+      threadId,
+      ThreadStatus.open,
+    );
   }
 }

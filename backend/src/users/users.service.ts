@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { Prisma, User, RefreshToken } from '@prisma/client/index';
+import { Prisma, RefreshToken, User, UserStatus } from '@prisma/client/index';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface CreateUserParams {
@@ -14,6 +14,27 @@ interface RefreshTokenPayload {
   tokenId: string;
   tokenHash: string;
   expiresAt: Date;
+}
+
+export type PublicUserProfile = Pick<
+  User,
+  | 'id'
+  | 'handle'
+  | 'displayName'
+  | 'avatarUrl'
+  | 'roles'
+  | 'status'
+  | 'threadsCount'
+  | 'postsCount'
+  | 'createdAt'
+  | 'lastActiveAt'
+>;
+
+export interface PublicUserListResult {
+  data: PublicUserProfile[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 @Injectable()
@@ -185,7 +206,27 @@ export class UsersService {
   async searchUsers(
     query: string,
     limit = 10,
-  ): Promise<Array<Pick<User, 'id' | 'handle' | 'displayName' | 'avatarUrl'>>> {
+    filters?: {
+      status?: UserStatus;
+      role?: string;
+    },
+  ): Promise<
+    Array<
+      Pick<
+        User,
+        | 'id'
+        | 'handle'
+        | 'displayName'
+        | 'avatarUrl'
+        | 'roles'
+        | 'status'
+        | 'threadsCount'
+        | 'postsCount'
+        | 'createdAt'
+        | 'lastActiveAt'
+      >
+    >
+  > {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {
       return [];
@@ -195,6 +236,8 @@ export class UsersService {
 
     const users = await this.prisma.user.findMany({
       where: {
+        ...(filters?.status ? { status: filters.status } : {}),
+        ...(filters?.role ? { roles: { has: filters.role } } : {}),
         OR: [
           { handle: { startsWith: normalizedQuery } },
           { displayName: { startsWith: normalizedQuery, mode: 'insensitive' } },
@@ -207,6 +250,12 @@ export class UsersService {
         handle: true,
         displayName: true,
         avatarUrl: true,
+        status: true,
+        roles: true,
+        threadsCount: true,
+        postsCount: true,
+        createdAt: true,
+        lastActiveAt: true,
       },
     });
 
@@ -227,5 +276,91 @@ export class UsersService {
 
   async findOne(where: Prisma.UserWhereInput): Promise<User | null> {
     return this.prisma.user.findFirst({ where });
+  }
+
+  async listPublicUsers({
+    query,
+    page = 1,
+    limit = 20,
+    role,
+    status,
+  }: {
+    query?: string;
+    page?: number;
+    limit?: number;
+    role?: string;
+    status?: UserStatus;
+  }): Promise<PublicUserListResult> {
+    const sanitizedPage = page > 0 ? page : 1;
+    const sanitizedLimit = Math.min(Math.max(limit, 1), 50);
+    const skip = (sanitizedPage - 1) * sanitizedLimit;
+
+    const where: Prisma.UserWhereInput = {};
+    if (query?.trim()) {
+      const keyword = query.trim();
+      where.OR = [
+        { handle: { contains: keyword, mode: 'insensitive' } },
+        { displayName: { contains: keyword, mode: 'insensitive' } },
+      ];
+    }
+
+    if (role) {
+      where.roles = { has: role };
+    }
+
+    where.status = status ?? UserStatus.active;
+
+    const [users, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: sanitizedLimit,
+        orderBy: [{ lastActiveAt: 'desc' }, { createdAt: 'desc' }],
+        select: {
+          id: true,
+          handle: true,
+          displayName: true,
+          avatarUrl: true,
+          roles: true,
+          status: true,
+          threadsCount: true,
+          postsCount: true,
+          createdAt: true,
+          lastActiveAt: true,
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      data: users,
+      total,
+      page: sanitizedPage,
+      limit: sanitizedLimit,
+    };
+  }
+
+  async findPublicProfileByHandle(
+    handle: string,
+  ): Promise<PublicUserProfile | null> {
+    if (!handle?.trim()) {
+      return null;
+    }
+
+    return this.prisma.user.findUnique({
+      where: { handle: handle.toLowerCase() },
+      select: {
+        id: true,
+        handle: true,
+        displayName: true,
+        avatarUrl: true,
+        roles: true,
+        status: true,
+        threadsCount: true,
+        postsCount: true,
+        createdAt: true,
+        lastActiveAt: true,
+      },
+    });
   }
 }

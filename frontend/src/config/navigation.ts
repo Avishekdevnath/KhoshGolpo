@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Bell, LayoutDashboard, MessageCircle, Settings2, ShieldCheck, Users } from "lucide-react";
+import { Activity, Bell, LayoutDashboard, MessageCircle, Settings2, ShieldCheck, UserCircle2, Users } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 export type NavigationItem = {
@@ -23,6 +23,7 @@ export const navigationSections: NavigationSection[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Threads", href: "/threads", icon: MessageCircle, badgeKey: "threads" },
+      { label: "My Threads", href: "/threads/my", icon: UserCircle2 },
       { label: "Notifications", href: "/notifications", icon: Bell, badgeKey: "notifications" },
       { label: "Profile", href: "/profile", icon: Users },
     ],

@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsPositive,
@@ -30,4 +31,21 @@ export class UserSearchQueryDto {
   @IsPositive()
   @Max(20)
   limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filter by user status (active, suspended, banned).',
+    example: 'active',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['active', 'suspended', 'banned'])
+  status?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by role (e.g., member, admin).',
+    example: 'member',
+  })
+  @IsOptional()
+  @IsString()
+  role?: string;
 }

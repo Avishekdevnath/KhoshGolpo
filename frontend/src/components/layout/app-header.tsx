@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Menu, Moon, Search, Settings2, Sun } from "lucide-react";
 
@@ -17,10 +18,29 @@ type AppHeaderProps = {
 
 export function AppHeader({ onMenuClick, onToggleTheme, theme }: AppHeaderProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryParam = searchParams.get("q") ?? "";
+  const [searchTerm, setSearchTerm] = useState(queryParam);
   const isDark = theme === "dark";
+
+  useEffect(() => {
+    setSearchTerm((current) => (current === queryParam ? current : queryParam));
+  }, [queryParam]);
 
   const handleOpenSettings = () => {
     router.push("/settings");
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = searchTerm.trim();
+    const params = new URLSearchParams();
+    if (trimmed) {
+      params.set("q", trimmed);
+    }
+    params.set("type", "people");
+    const target = `/search?${params.toString()}`;
+    router.push(target);
   };
 
   return (
@@ -36,16 +56,31 @@ export function AppHeader({ onMenuClick, onToggleTheme, theme }: AppHeaderProps)
           <Menu className="size-5" />
         </Button>
 
-        <div className="relative hidden flex-1 items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-4 py-2 text-slate-600 shadow-inner shadow-slate-300/40 transition-colors dark:border-slate-800/80 dark:bg-slate-900/70 dark:text-slate-300 dark:shadow-slate-900/70 lg:flex">
-          <Search className="size-4 text-slate-400 dark:text-slate-500" />
+        <form
+          className="relative hidden flex-1 items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-4 py-2 text-slate-600 shadow-inner shadow-slate-300/40 transition-colors dark:border-slate-800/80 dark:bg-slate-900/70 dark:text-slate-300 dark:shadow-slate-900/70 lg:flex"
+          onSubmit={handleSubmit}
+          role="search"
+          aria-label="Search people"
+        >
+          <Search className="size-4 text-slate-400 dark:text-slate-500" aria-hidden="true" />
           <Input
-            placeholder="Search threads, notes, or people"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search people"
+            aria-label="Search people"
             className="border-0 bg-transparent p-0 text-sm text-slate-600 placeholder:text-slate-400 focus-visible:ring-0 dark:text-slate-200"
           />
+          <Button
+            type="submit"
+            size="sm"
+            className="ml-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-colors hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+          >
+            Search
+          </Button>
           <span className="ml-auto hidden min-w-[88px] items-center justify-center rounded-lg border border-slate-200/80 px-4 py-1 text-xs uppercase tracking-wide text-slate-500 transition-colors dark:border-slate-700 dark:text-slate-400 xl:inline-flex">
             Ctrl + K
           </span>
-        </div>
+        </form>
 
         <div className="flex items-center justify-end gap-2">
           <Button
@@ -73,5 +108,4 @@ export function AppHeader({ onMenuClick, onToggleTheme, theme }: AppHeaderProps)
     </header>
   );
 }
-
 

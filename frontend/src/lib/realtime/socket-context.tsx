@@ -36,11 +36,15 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     socketRef.current = socket;
 
     const revalidateThreads = () => {
-      void mutate((key) => Array.isArray(key) && key[0] === "threads");
+      void mutate(
+        (key) =>
+          Array.isArray(key) &&
+          (key[0] === "threads" || key[0] === "threads:user" || key[0] === "threads:me"),
+      );
     };
 
     const revalidateThreadDetails = (threadId: string) => {
-      void mutate((key) => Array.isArray(key) && key[0] === "threads" && key[1]?.threadId === threadId);
+      void mutate((key) => Array.isArray(key) && key[0] === "threads" && key[1] === threadId);
       void mutate((key) => Array.isArray(key) && key[0] === "admin-moderation-posts");
     };
 
@@ -75,10 +79,16 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       revalidateNotifications();
     });
 
+    socket.on("thread.status", (payload: { threadId: string }) => {
+      revalidateThreads();
+      revalidateThreadDetails(payload.threadId);
+    });
+
     return () => {
       socket.off("thread.created");
       socket.off("post.created");
       socket.off("notification.created");
+      socket.off("thread.status");
       socket.off("connect", handleConnected);
       socket.off("disconnect", handleDisconnected);
       socket.disconnect();

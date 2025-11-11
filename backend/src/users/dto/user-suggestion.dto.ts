@@ -25,4 +25,18 @@ export class UserSuggestionDto {
     nullable: true,
   })
   avatarUrl?: string | null;
+
+  @ApiProperty({
+    description: 'User status.',
+    example: 'active',
+    enum: ['active', 'suspended', 'banned'],
+  })
+  status!: string;
+
+  @ApiProperty({
+    description: 'Roles assigned to the user.',
+    example: ['member'],
+    type: [String],
+  })
+  roles!: string[];
 }

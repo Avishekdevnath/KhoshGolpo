@@ -12,12 +12,21 @@ import { NotificationsService } from '../notifications/notifications.service';
 import type { ActiveUser } from '../common/decorators/current-user.decorator';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { ListThreadsQueryDto } from './dto/list-threads.query';
+import { ListUserThreadsQueryDto } from './dto/list-user-threads.query';
+import { ThreadSearchQueryDto } from './dto/thread-search.query';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UsersService } from '../users/users.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { CacheService } from '../cache/cache.service';
 
 type ReactionType = 'upvote' | 'downvote';
+
+interface PostAuthor {
+  id: string;
+  handle?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}
 
 interface PostRecord {
   id: string;
@@ -33,6 +42,7 @@ interface PostRecord {
   repliesCount?: number | null;
   createdAt: Date;
   updatedAt: Date;
+  author?: PostAuthor;
 }
 
 interface PaginatedThreads {
@@ -90,6 +100,125 @@ export class ThreadsService {
     await this.cache.set(cacheKey, result, 60);
 
     return result;
+  }
+
+  async searchThreads(query: ThreadSearchQueryDto): Promise<PaginatedThreads> {
+    const cacheKey = this.buildThreadSearchCacheKey(query);
+    const cached = await this.cache.get<PaginatedThreads>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const skip = (query.page - 1) * query.limit;
+    const where: Prisma.ThreadWhereInput = {};
+
+    if (query.status) {
+      where.status = query.status as ThreadStatus;
+    }
+
+    if (query.tag) {
+      where.tags = { has: query.tag.toLowerCase() };
+    }
+
+    const keyword = query.q?.trim();
+    if (keyword) {
+      const orFilters: Prisma.ThreadWhereInput[] = [
+        { title: { contains: keyword, mode: 'insensitive' } },
+        {
+          posts: {
+            some: { body: { contains: keyword, mode: 'insensitive' } },
+          },
+        },
+      ];
+      const existingAnd = Array.isArray(where.AND)
+        ? where.AND
+        : where.AND
+          ? [where.AND]
+          : [];
+      where.AND = [...existingAnd, { OR: orFilters }];
+    }
+
+    const [threads, total] = await this.prisma.$transaction([
+      this.prisma.thread.findMany({
+        where,
+        orderBy: { lastActivityAt: 'desc' },
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.thread.count({ where }),
+    ]);
+
+    const result = {
+      data: threads,
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+
+    await this.cache.set(cacheKey, result, 45);
+
+    return result;
+  }
+
+  async listThreadsByAuthor(
+    authorId: string,
+    query: ListUserThreadsQueryDto,
+  ): Promise<PaginatedThreads> {
+    const author = await this.usersService.findById(authorId);
+    if (!author) {
+      throw new NotFoundException('User not found.');
+    }
+
+    const cacheKey = this.buildUserThreadListCacheKey(authorId, query);
+    const cached = await this.cache.get<PaginatedThreads>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const skip = (query.page - 1) * query.limit;
+    const where: Prisma.ThreadWhereInput = {
+      authorId,
+    };
+    if (query.status) {
+      where.status = query.status as ThreadStatus;
+    }
+
+    const [threads, total] = await this.prisma.$transaction([
+      this.prisma.thread.findMany({
+        where,
+        orderBy: { lastActivityAt: 'desc' },
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.thread.count({ where }),
+    ]);
+
+    const result = {
+      data: threads,
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+
+    await this.cache.set(cacheKey, result, 60);
+
+    return result;
+  }
+
+  async listRecentThreadsByAuthor(
+    authorId: string,
+    limit = 5,
+  ): Promise<Thread[]> {
+    const sanitizedLimit = Math.min(Math.max(limit, 1), 20);
+
+    return this.prisma.thread.findMany({
+      where: {
+        authorId,
+        status: { in: [ThreadStatus.open, ThreadStatus.locked] },
+      },
+      orderBy: { lastActivityAt: 'desc' },
+      take: sanitizedLimit,
+    });
   }
 
   async getThread(threadId: string) {
@@ -202,9 +331,11 @@ export class ThreadsService {
       }),
     );
 
-    this.realtime.emitThreadCreated(result.thread, result.firstPost);
+    const firstPostWithAuthor = await this.enrichPostWithAuthor(
+      result.firstPost,
+    );
 
-    await this.invalidateThreadCaches(result.thread.id);
+    await this.invalidateThreadCaches(result.thread.id, authorId);
     await this.cache.delByPattern(this.threadListPattern());
 
     await this.safeQueue('notification', () =>
@@ -223,12 +354,14 @@ export class ThreadsService {
     if (mentionRecipients.length) {
       await this.handleMentionNotifications(
         result.thread.id,
-        result.firstPost,
+        firstPostWithAuthor,
         mentionRecipients,
       );
     }
 
-    return result;
+    this.realtime.emitThreadCreated(result.thread, firstPostWithAuthor);
+
+    return { thread: result.thread, firstPost: firstPostWithAuthor };
   }
 
   async createPost(
@@ -326,15 +459,17 @@ export class ThreadsService {
       }),
     );
 
+    const enrichedPost = await this.enrichPostWithAuthor(post);
+
     if (recipients.participants.length) {
       await this.safeQueue('notification', () =>
         this.notifications.enqueue(
           'post.created',
           {
-            postId: post.id,
+            postId: enrichedPost.id,
             threadId,
             authorId,
-            createdAt: post.createdAt,
+            createdAt: enrichedPost.createdAt,
           },
           recipients.participants,
         ),
@@ -344,17 +479,17 @@ export class ThreadsService {
     if (recipients.mentions.length) {
       await this.handleMentionNotifications(
         threadId,
-        post,
+        enrichedPost,
         recipients.mentions,
       );
     }
 
-    this.realtime.emitPostCreated(threadId, post);
+    this.realtime.emitPostCreated(threadId, enrichedPost);
 
-    await this.invalidateThreadCaches(threadId);
+    await this.invalidateThreadCaches(threadId, thread.authorId);
     await this.cache.delByPattern(this.threadListPattern());
 
-    return post;
+    return enrichedPost;
   }
 
   async updatePost(
@@ -407,23 +542,24 @@ export class ThreadsService {
     );
 
     if (!changed) {
-      return updatedPost;
+      return this.enrichPostWithAuthor(updatedPost);
     }
 
     await this.replacePostMentions(updatedPost.id, mentionRecipients);
+    const enrichedPost = await this.enrichPostWithAuthor(updatedPost);
     if (mentionRecipients.length) {
       await this.handleMentionNotifications(
         threadId,
-        updatedPost,
+        enrichedPost,
         mentionRecipients,
       );
     }
 
-    this.realtime.emitPostUpdated(threadId, updatedPost);
+    this.realtime.emitPostUpdated(threadId, enrichedPost);
     await this.invalidateThreadCaches(threadId);
     await this.cache.delByPattern(this.threadListPattern());
 
-    return updatedPost;
+    return enrichedPost;
   }
 
   async reactToPost(
@@ -542,7 +678,9 @@ export class ThreadsService {
     await this.invalidateThreadCaches(threadId);
     await this.cache.delByPattern(this.threadListPattern());
 
-    return { post: postAfterReaction, userReaction: newReaction };
+    const postWithAuthor = await this.enrichPostWithAuthor(postAfterReaction);
+
+    return { post: postWithAuthor, userReaction: newReaction };
   }
 
   async removePostReaction(
@@ -597,7 +735,8 @@ export class ThreadsService {
     await this.invalidateThreadCaches(threadId);
     await this.cache.delByPattern(this.threadListPattern());
 
-    return updatedPost;
+    const enrichedPost = await this.enrichPostWithAuthor(updatedPost);
+    return enrichedPost;
   }
 
   async deletePost(
@@ -607,6 +746,7 @@ export class ThreadsService {
   ): Promise<void> {
     const userId = user.userId;
     const now = new Date();
+    let threadAuthorId: string | undefined;
 
     await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const post = await tx.post.findUnique({ where: { id: postId } });
@@ -621,6 +761,7 @@ export class ThreadsService {
       if (!thread) {
         throw new NotFoundException('Thread not found.');
       }
+      threadAuthorId = thread.authorId;
 
       await tx.postReaction.deleteMany({ where: { postId } });
       await tx.postMention.deleteMany({ where: { postId } });
@@ -675,12 +816,13 @@ export class ThreadsService {
     });
 
     this.realtime.emitPostDeleted(threadId, postId);
-    await this.invalidateThreadCaches(threadId);
+    await this.invalidateThreadCaches(threadId, threadAuthorId);
     await this.cache.delByPattern(this.threadListPattern());
   }
 
   async deleteThread(user: ActiveUser, threadId: string): Promise<void> {
     const userId = user.userId;
+    let threadAuthorId: string | undefined;
 
     await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const thread = await tx.thread.findUnique({ where: { id: threadId } });
@@ -690,6 +832,7 @@ export class ThreadsService {
       if (thread.authorId !== userId) {
         throw new ForbiddenException('You can only delete your own threads.');
       }
+      threadAuthorId = thread.authorId;
 
       const posts = await tx.post.findMany({
         where: { threadId },
@@ -735,7 +878,7 @@ export class ThreadsService {
     });
 
     this.realtime.emitThreadDeleted(threadId);
-    await this.invalidateThreadCaches(threadId);
+    await this.invalidateThreadCaches(threadId, threadAuthorId ?? userId);
     await this.cache.delByPattern(this.threadListPattern());
   }
 
@@ -749,7 +892,18 @@ export class ThreadsService {
       limit: number;
     }>(cacheKey);
     if (cached) {
-      return cached;
+      const containsAuthorInfo = cached.posts.every(
+        (post) => post.author && post.author.id,
+      );
+      if (containsAuthorInfo) {
+        return cached;
+      }
+      const enrichedCached = {
+        ...cached,
+        posts: await this.enrichPostsWithAuthors(cached.posts),
+      };
+      await this.cache.set(cacheKey, enrichedCached, 45);
+      return enrichedCached;
     }
 
     const [thread, postsData] = await Promise.all([
@@ -759,7 +913,7 @@ export class ThreadsService {
 
     const result = {
       thread,
-      posts: postsData.posts,
+      posts: await this.enrichPostsWithAuthors(postsData.posts),
       postsTotal: postsData.total,
       page,
       limit,
@@ -779,10 +933,54 @@ export class ThreadsService {
       data: { status },
     });
 
-    await this.invalidateThreadCaches(threadId);
+    await this.invalidateThreadCaches(threadId, thread.authorId);
     await this.cache.delByPattern(this.threadListPattern());
 
     return thread;
+  }
+
+  async updateThreadStatusByOwner(
+    user: ActiveUser,
+    threadId: string,
+    status: ThreadStatus,
+  ): Promise<void> {
+    const allowedStatuses = new Set<ThreadStatus>([
+      ThreadStatus.open,
+      ThreadStatus.archived,
+    ]);
+
+    if (!allowedStatuses.has(status)) {
+      throw new ForbiddenException(
+        'You can only archive or reopen your own threads.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const thread = await tx.thread.findUnique({
+        where: { id: threadId },
+        select: { authorId: true, status: true },
+      });
+      if (!thread) {
+        throw new NotFoundException('Thread not found.');
+      }
+      if (thread.authorId !== user.userId) {
+        throw new ForbiddenException(
+          'You can only manage status for threads you created.',
+        );
+      }
+      if (thread.status === status) {
+        return;
+      }
+
+      await tx.thread.update({
+        where: { id: threadId },
+        data: { status, lastActivityAt: new Date() },
+      });
+    });
+
+    this.realtime.emitThreadStatusUpdated(threadId, status);
+    await this.invalidateThreadCaches(threadId, user.userId);
+    await this.cache.delByPattern(this.threadListPattern());
   }
 
   async moderatePost(
@@ -812,7 +1010,8 @@ export class ThreadsService {
     await this.invalidateThreadCaches(post.threadId);
     await this.cache.delByPattern(this.threadListPattern());
 
-    return post;
+    const enrichedPost = await this.enrichPostWithAuthor(post);
+    return enrichedPost;
   }
 
   private async generateUniqueSlug(title: string): Promise<string> {
@@ -837,6 +1036,68 @@ export class ThreadsService {
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
+  }
+
+  private mapUserToAuthor(user: {
+    id: string;
+    handle: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+  }): PostAuthor {
+    return {
+      id: user.id,
+      handle: user.handle ?? null,
+      displayName: user.displayName ?? null,
+      avatarUrl: user.avatarUrl ?? null,
+    };
+  }
+
+  private async enrichPostsWithAuthors<T extends PostRecord>(
+    posts: T[],
+  ): Promise<Array<T & { author: PostAuthor }>> {
+    if (posts.length === 0) {
+      return [];
+    }
+
+    const authorIds = Array.from(
+      new Set(posts.map((post) => post.author?.id ?? post.authorId)),
+    );
+
+    const authors = await this.prisma.user.findMany({
+      where: { id: { in: authorIds } },
+      select: {
+        id: true,
+        handle: true,
+        displayName: true,
+        avatarUrl: true,
+      },
+    });
+
+    const authorMap = new Map(
+      authors.map((user) => [user.id, this.mapUserToAuthor(user)]),
+    );
+
+    return posts.map((post) => {
+      const existing = post.author;
+      const mapped = authorMap.get(post.authorId);
+      const author: PostAuthor = {
+        id: existing?.id ?? post.authorId,
+        handle: existing?.handle ?? mapped?.handle ?? null,
+        displayName: existing?.displayName ?? mapped?.displayName ?? null,
+        avatarUrl: existing?.avatarUrl ?? mapped?.avatarUrl ?? null,
+      };
+      return {
+        ...post,
+        author,
+      };
+    });
+  }
+
+  private async enrichPostWithAuthor<T extends PostRecord>(
+    post: T,
+  ): Promise<T & { author: PostAuthor }> {
+    const [enriched] = await this.enrichPostsWithAuthors([post]);
+    return enriched;
   }
 
   private buildThreadSummaryPrompt(title: string, body: string): string {
@@ -962,6 +1223,21 @@ export class ThreadsService {
     return `threads:list:${statusKey}:${query.page}:${query.limit}`;
   }
 
+  private buildThreadSearchCacheKey(query: ThreadSearchQueryDto): string {
+    const statusKey = query.status ?? 'all';
+    const tagKey = query.tag ? query.tag.toLowerCase() : 'all';
+    const keywordKey = query.q ? encodeURIComponent(query.q.trim()) : 'all';
+    return `threads:search:${statusKey}:${tagKey}:${keywordKey}:${query.page}:${query.limit}`;
+  }
+
+  private buildUserThreadListCacheKey(
+    authorId: string,
+    query: ListUserThreadsQueryDto,
+  ): string {
+    const statusKey = query.status ?? 'all';
+    return `threads:user:${authorId}:${statusKey}:${query.page}:${query.limit}`;
+  }
+
   private buildThreadDetailCacheKey(
     threadId: string,
     page: number,
@@ -974,12 +1250,37 @@ export class ThreadsService {
     return 'threads:list:*';
   }
 
+  private userThreadListPattern(authorId: string): string {
+    return `threads:user:${authorId}:*`;
+  }
+
+  private threadSearchPattern(): string {
+    return 'threads:search:*';
+  }
+
   private threadDetailPattern(threadId: string): string {
     return `threads:detail:${threadId}:*`;
   }
 
-  private async invalidateThreadCaches(threadId: string): Promise<void> {
+  private async invalidateThreadCaches(
+    threadId: string,
+    authorId?: string,
+  ): Promise<void> {
     await this.cache.delByPattern(this.threadDetailPattern(threadId));
+    let authorToInvalidate = authorId;
+    if (!authorToInvalidate) {
+      const thread = await this.prisma.thread.findUnique({
+        where: { id: threadId },
+        select: { authorId: true },
+      });
+      authorToInvalidate = thread?.authorId;
+    }
+    if (authorToInvalidate) {
+      await this.cache.delByPattern(
+        this.userThreadListPattern(authorToInvalidate),
+      );
+    }
+    await this.cache.delByPattern(this.threadSearchPattern());
   }
 
   private async safeQueue(

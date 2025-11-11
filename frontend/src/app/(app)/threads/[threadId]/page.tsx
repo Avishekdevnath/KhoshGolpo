@@ -2,16 +2,26 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CheckCheck, Loader2, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCheck,
+  Loader2,
+  PencilLine,
+  ShieldAlert,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useThread, useCreatePost, useDeletePost, useDeleteThread } from "@/lib/api/hooks/threads";
+import { useThread, useCreatePost, useDeletePost, useDeleteThread, useUpdatePost } from "@/lib/api/hooks/threads";
 import type { Post } from "@/lib/api/threads";
 import { getErrorMessage } from "@/lib/utils/error";
 import { formatRelativeTime } from "@/lib/utils/date";
@@ -35,14 +45,23 @@ const moderationStyles: Record<string, string> = {
   rejected: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300",
 };
 
-const formatAuthorLabel = (authorId: string) => {
-  if (!authorId) return "Community member";
-  const trimmed = authorId.replace(/[^a-zA-Z0-9]/g, "");
-  return trimmed ? `member-${trimmed.slice(0, 6).toLowerCase()}` : "Community member";
+const formatAuthorLabel = (post: Post) => {
+  const display = post.author?.displayName?.trim();
+  if (display) {
+    return display;
+  }
+  const handle = post.author?.handle?.trim();
+  if (handle) {
+    return handle.startsWith("@") ? handle : `@${handle}`;
+  }
+  const fallback = post.authorId.replace(/[^a-zA-Z0-9]/g, "");
+  return fallback ? `member-${fallback.slice(0, 6).toLowerCase()}` : "Community member";
 };
 
-function SummarySection({ summary }: { summary?: string | null }) {
-  if (!summary) {
+function SummarySection({ summary, fallback }: { summary?: string | null; fallback?: string | null }) {
+  const content = (summary ?? fallback ?? "").trim();
+
+  if (!content.length) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/50 dark:text-slate-400">
         <Sparkles className="mb-3 size-5 text-slate-400" />
@@ -57,7 +76,7 @@ function SummarySection({ summary }: { summary?: string | null }) {
         <Sparkles className="mt-1 size-5 text-sky-400" />
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Summary</p>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-200">{summary}</p>
+          <p className="mt-2 whitespace-pre-line text-sm text-slate-600 dark:text-slate-200">{content}</p>
         </div>
       </div>
     </div>
@@ -70,6 +89,7 @@ function PostItem({
   repliesMap,
   onReply,
   onDelete,
+  onEdit,
   currentUserId,
 }: {
   post: Post;
@@ -77,6 +97,7 @@ function PostItem({
   repliesMap: Map<string, Post[]>;
   onReply: (parentId: string, message: string) => Promise<void>;
   onDelete: (postId: string) => Promise<void>;
+  onEdit: (postId: string, nextBody: string) => Promise<void>;
   currentUserId?: string | null;
 }) {
   const childReplies = repliesMap.get(post.id) ?? [];
@@ -88,7 +109,17 @@ function PostItem({
   const [replyError, setReplyError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState(post.body);
+  const [isUpdating, setIsUpdating] = useState(false);
   const isOwnPost = currentUserId && post.authorId === currentUserId;
+  const authorLabel = formatAuthorLabel(post);
+  const authorAvatar = post.author?.avatarUrl ?? null;
+  const authorInitial = authorLabel.replace(/^@/, "").charAt(0).toUpperCase();
+
+  useEffect(() => {
+    setEditDraft(post.body);
+  }, [post.body]);
 
   const handleSubmitReply = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -116,12 +147,75 @@ function PostItem({
   return (
     <div className={cn("space-y-4", depth > 0 && "border-l border-slate-200 pl-4 dark:border-slate-800")}>
       <article className="rounded-2xl border border-slate-200 bg-white p-6 transition hover:border-slate-300 dark:border-slate-800/60 dark:bg-slate-950/70 dark:hover:border-slate-700/80">
-        <header className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <span className="font-semibold text-slate-900 dark:text-white">{formatAuthorLabel(post.authorId)}</span>
+        <header className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2">
+            {authorAvatar ? (
+              <Image
+                src={authorAvatar}
+                alt={authorLabel}
+                width={24}
+                height={24}
+                className="size-6 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+              />
+            ) : (
+              <div className="flex size-6 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[0.65rem] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                {authorInitial || "?"}
+              </div>
+            )}
+            <span className="font-semibold text-slate-900 dark:text-white">{authorLabel}</span>
+          </div>
           <span className="text-slate-300 dark:text-slate-600">•</span>
           <time dateTime={post.createdAt}>{formatRelativeTime(post.createdAt)}</time>
         </header>
-        <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700 dark:text-slate-200">{post.body}</p>
+        {!isEditing ? (
+          <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700 dark:text-slate-200">{post.body}</p>
+        ) : (
+          <form
+            className="mt-3 space-y-3"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (!editDraft.trim()) {
+                toast.error("Post content cannot be empty.");
+                return;
+              }
+              setIsUpdating(true);
+              try {
+                await onEdit(post.id, editDraft.trim());
+                setIsEditing(false);
+                toast.success("Post updated.");
+              } catch (error) {
+                toast.error(getErrorMessage(error, "Unable to update this post right now."));
+              } finally {
+                setIsUpdating(false);
+              }
+            }}
+          >
+            <Textarea
+              value={editDraft}
+              onChange={(event) => setEditDraft(event.target.value)}
+              rows={4}
+              className="border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 dark:placeholder:text-slate-500"
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-slate-500 hover:text-slate-700 dark:text-slate-300"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditDraft(post.body);
+                }}
+                disabled={isUpdating}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" isLoading={isUpdating} disabled={isUpdating}>
+                Save changes
+              </Button>
+            </div>
+          </form>
+        )}
         {post.moderationFeedback && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-100 px-3 py-2 text-xs text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200">
             <div className="flex items-center gap-2 font-semibold uppercase tracking-[0.2em]">
@@ -146,6 +240,20 @@ function PostItem({
             >
               {isReplying ? "Close reply" : "Reply"}
             </Button>
+            {isOwnPost && !isEditing && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-slate-500 hover:text-slate-700 dark:text-slate-300"
+                onClick={() => {
+                  setIsEditing(true);
+                  setEditDraft(post.body);
+                }}
+              >
+                Edit
+              </Button>
+            )}
             {isOwnPost && (
               <Button
                 type="button"
@@ -188,7 +296,7 @@ function PostItem({
               rows={3}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder={`Reply to ${formatAuthorLabel(post.authorId)}`}
+              placeholder={`Reply to ${formatAuthorLabel(post)}`}
               className="border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 dark:placeholder:text-slate-500"
             />
             {replyError && <p className="text-xs text-red-500">{replyError}</p>}
@@ -231,6 +339,7 @@ function PostItem({
               repliesMap={repliesMap}
               onReply={onReply}
               onDelete={onDelete}
+              onEdit={onEdit}
               currentUserId={currentUserId}
             />
           ))}
@@ -259,6 +368,7 @@ export default function ThreadDetailPage({ params }: { params: Promise<{ threadI
   const createPost = useCreatePost(threadId);
   const deletePostMutation = useDeletePost(threadId);
   const deleteThreadMutation = useDeleteThread();
+  const updatePostMutation = useUpdatePost(threadId);
   const { user } = useAuth();
   const { socket } = useSocket();
   const router = useRouter();
@@ -283,10 +393,20 @@ export default function ThreadDetailPage({ params }: { params: Promise<{ threadI
   const firstPost = isFirstPage && posts.length ? posts[0] : null;
   const currentUserId = user?.id ?? null;
   const userRoles = user?.roles ?? [];
+  const isThreadOwner = thread && currentUserId ? thread.authorId === currentUserId : false;
   const canDeleteThread =
     thread && currentUserId
       ? thread.authorId === currentUserId || userRoles.includes("admin") || userRoles.includes("moderator")
       : false;
+  const canEditThread = !!isThreadOwner;
+
+  const [isEditingHero, setIsEditingHero] = useState(false);
+  const [heroDraft, setHeroDraft] = useState(firstPost?.body ?? "");
+  const [isUpdatingHero, setIsUpdatingHero] = useState(false);
+
+  useEffect(() => {
+    setHeroDraft(firstPost?.body ?? "");
+  }, [firstPost?.body]);
 
   const repliesByParent = useMemo(() => {
     const map = new Map<string, Post[]>();
@@ -340,6 +460,14 @@ export default function ThreadDetailPage({ params }: { params: Promise<{ threadI
       await mutate();
     },
     [deletePostMutation, mutate],
+  );
+
+  const handleUpdatePost = useCallback(
+    async (postId: string, bodyToUpdate: string) => {
+      await updatePostMutation(postId, { body: bodyToUpdate });
+      await mutate();
+    },
+    [mutate, updatePostMutation],
   );
 
   const handleDeleteThread = useCallback(async () => {
@@ -446,12 +574,77 @@ export default function ThreadDetailPage({ params }: { params: Promise<{ threadI
               {firstPost && (
                 <section className="space-y-4">
                   <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 text-slate-700 dark:border-slate-800/60 dark:bg-slate-900/60 dark:text-slate-200">
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                      <span>{formatAuthorLabel(firstPost.authorId)}</span>
-                      <span>•</span>
-                      <span>{formatRelativeTime(firstPost.createdAt)}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      <div className="flex items-center gap-2">
+                        <span>{formatAuthorLabel(firstPost)}</span>
+                        <span>•</span>
+                        <span>{formatRelativeTime(firstPost.createdAt)}</span>
+                      </div>
+                      {canEditThread && !isEditingHero && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-slate-500 hover:text-slate-700 dark:text-slate-300"
+                          onClick={() => {
+                            setIsEditingHero(true);
+                            setHeroDraft(firstPost.body);
+                          }}
+                        >
+                          <PencilLine className="mr-2 size-4" />
+                          Edit thread
+                        </Button>
+                      )}
                     </div>
-                    <p className="mt-3 whitespace-pre-line text-base leading-7">{firstPost.body}</p>
+                    {!isEditingHero ? (
+                      <p className="mt-3 whitespace-pre-line text-base leading-7">{firstPost.body}</p>
+                    ) : (
+                      <form
+                        className="mt-3 space-y-3"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          if (!heroDraft.trim()) {
+                            toast.error("Thread content cannot be empty.");
+                            return;
+                          }
+                          setIsUpdatingHero(true);
+                          try {
+                            await handleUpdatePost(firstPost.id, heroDraft.trim());
+                            setIsEditingHero(false);
+                            toast.success("Thread updated.");
+                          } catch (error) {
+                            toast.error(getErrorMessage(error, "Unable to update this thread right now."));
+                          } finally {
+                            setIsUpdatingHero(false);
+                          }
+                        }}
+                      >
+                        <Textarea
+                          value={heroDraft}
+                          onChange={(event) => setHeroDraft(event.target.value)}
+                          rows={6}
+                          className="border-slate-200 text-base text-slate-700 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 dark:placeholder:text-slate-500"
+                        />
+                        <div className="flex items-center gap-2 text-xs">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-slate-500 hover:text-slate-700 dark:text-slate-300"
+                            onClick={() => {
+                              setIsEditingHero(false);
+                              setHeroDraft(firstPost.body);
+                            }}
+                            disabled={isUpdatingHero}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" size="sm" isLoading={isUpdatingHero} disabled={isUpdatingHero}>
+                            Save thread
+                          </Button>
+                        </div>
+                      </form>
+                    )}
                   </div>
 
                   {heroReplies.length > 0 && (
@@ -464,6 +657,7 @@ export default function ThreadDetailPage({ params }: { params: Promise<{ threadI
                           repliesMap={repliesByParent}
                           onReply={handleInlineReply}
                           onDelete={handleDeletePost}
+                          onEdit={handleUpdatePost}
                           currentUserId={currentUserId}
                         />
                       ))}
@@ -472,7 +666,7 @@ export default function ThreadDetailPage({ params }: { params: Promise<{ threadI
                 </section>
               )}
 
-              <SummarySection summary={summary} />
+              <SummarySection summary={summary} fallback={firstPost?.body} />
 
               {!!thread.tags?.length && (
                 <div className="flex flex-wrap gap-2">
@@ -522,6 +716,7 @@ export default function ThreadDetailPage({ params }: { params: Promise<{ threadI
                 repliesMap={repliesByParent}
                 onReply={handleInlineReply}
                 onDelete={handleDeletePost}
+                onEdit={handleUpdatePost}
                 currentUserId={currentUserId}
               />
             ))}

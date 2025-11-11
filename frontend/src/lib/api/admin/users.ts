@@ -50,7 +50,7 @@ export async function listAdminUsers(query: AdminUsersQuery = {}, accessToken: s
   const params = new URLSearchParams();
   if (query.page) params.set("page", String(query.page));
   if (query.limit) params.set("limit", String(query.limit));
-  if (query.query) params.set("query", query.query);
+  if (query.query) params.set("q", query.query);
   if (query.roles) params.set("roles", query.roles);
   if (query.status) params.set("status", query.status);
   if (query.sortBy) params.set("sortBy", query.sortBy);

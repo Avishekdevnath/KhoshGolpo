@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { ThreadSchema } from '../threads/schemas/thread.schema';
 import { PostSchema } from '../posts/schemas/post.schema';
-import type { Thread, Prisma } from '@prisma/client/index';
+import type { Thread, ThreadStatus, Prisma } from '@prisma/client/index';
 import { NotificationSchema } from '../notifications/schemas/notification.schema';
 
 export interface NotificationRecord {
@@ -36,6 +36,13 @@ export type AppSocket = Socket<
   SocketData
 >;
 
+interface PostAuthorPayload {
+  id: string;
+  handle?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}
+
 interface PostPayload {
   id: string;
   threadId: string;
@@ -50,6 +57,7 @@ interface PostPayload {
   repliesCount?: number | null;
   createdAt: Date;
   updatedAt: Date;
+  author?: PostAuthorPayload;
 }
 
 export interface PostReactionBroadcast {
@@ -184,6 +192,17 @@ export class RealtimeService {
       return;
     }
     this.server.emit('thread.deleted', { threadId });
+  }
+
+  emitThreadStatusUpdated(threadId: string, status: ThreadStatus): void {
+    if (!this.server) {
+      return;
+    }
+    const payload = { threadId, status };
+    this.server.emit('thread.status', payload);
+    this.server
+      .to(this.buildThreadRoom(threadId))
+      .emit('thread.status', payload);
   }
 
   private buildUserRoom(userId: string): string {
