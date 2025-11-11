@@ -1,5 +1,4 @@
 /* eslint-disable @next/next/no-img-element */
-import '@testing-library/jest-dom';
 import React from 'react';
 import { vi } from 'vitest';
 import * as nextRouterMock from 'next-router-mock';

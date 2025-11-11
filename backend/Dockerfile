@@ -31,8 +31,8 @@ RUN apk add --no-cache dumb-init
 COPY package*.json ./
 COPY prisma ./prisma
 
-# Install only production dependencies
-RUN npm ci --only=production
+# Install dependencies (includes prisma CLI for runtime generation)
+RUN npm ci
 
 # Generate Prisma client in runtime
 RUN npm run prisma:generate

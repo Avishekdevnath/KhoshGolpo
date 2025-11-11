@@ -17,7 +17,6 @@ import { configValidationSchema } from './config/config.validation';
 import { RealtimeModule } from './realtime/realtime.module';
 import { CacheModule } from './cache/cache.module';
 import { AdminModule } from './admin/admin.module';
-import { SecurityModule } from './security/security.module';
 
 @Module({
   imports: [
@@ -73,7 +72,6 @@ import { SecurityModule } from './security/security.module';
     RealtimeModule, // WebSocket connections
     CacheModule, // Redis caching
     AdminModule, // Admin operations & auditing
-    SecurityModule, // Security events & DDoS protection
   ],
   controllers: [AppController],
   providers: [

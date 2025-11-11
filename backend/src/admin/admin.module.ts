@@ -6,22 +6,10 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { UsersModule } from '../users/users.module';
 import { AdminUsersController } from './controllers/admin-users.controller';
 import { AdminUsersService } from './services/admin-users.service';
-import { SecurityModule } from '../security/security.module';
-import { AdminSecurityController } from './controllers/admin-security.controller';
-import { AdminSecurityService } from './services/admin-security.service';
 
 @Module({
-  imports: [PrismaModule, UsersModule, SecurityModule],
-  controllers: [
-    AdminModerationController,
-    AdminUsersController,
-    AdminSecurityController,
-  ],
-  providers: [
-    AdminModerationService,
-    AdminUsersService,
-    AdminSecurityService,
-    RolesGuard,
-  ],
+  imports: [PrismaModule, UsersModule],
+  controllers: [AdminModerationController, AdminUsersController],
+  providers: [AdminModerationService, AdminUsersService, RolesGuard],
 })
 export class AdminModule {}

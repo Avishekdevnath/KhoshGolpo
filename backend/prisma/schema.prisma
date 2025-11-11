@@ -163,23 +163,6 @@ model AdminAudit {
   @@index([resource, createdAt])
 }
 
-model SecurityEvent {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  type       String
-  userId     String?  @db.ObjectId
-  ip         String?
-  userAgent  String?
-  endpoint   String?
-  details    Json?
-  severity   String   @default("info")
-  createdAt  DateTime @default(now())
-  status     String   @default("open")
-
-  @@index([userId, createdAt])
-  @@index([type, createdAt])
-  @@index([status, createdAt])
-}
-
 model Notification {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @db.ObjectId

@@ -17,6 +17,8 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -48,8 +50,6 @@ jobs:
           path: backend/coverage
 
       - name: Trigger Render deploy
-        if: github.ref == 'refs/heads/main' && success() && secrets.RENDER_DEPLOY_HOOK_URL
-        env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: curl -X POST "$HOOK"
+        if: ${{ github.ref == 'refs/heads/main' && success() && env.RENDER_DEPLOY_HOOK_URL != '' }}
+        run: curl -X POST "$RENDER_DEPLOY_HOOK_URL"
 
