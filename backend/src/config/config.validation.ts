@@ -50,6 +50,7 @@ export const configValidationSchema = Joi.object({
   AI_REQUEST_TIMEOUT_MS: Joi.number().default(10_000),
 
   NOTIFICATION_WEBHOOK_URL: Joi.string().uri().optional(),
+  NOTIFICATION_WEBHOOK_SECRET: Joi.string().min(8).optional(),
   NOTIFICATION_RETRY_LIMIT: Joi.number().default(5),
 
   EMAIL_HOST: Joi.string().hostname().required(),
@@ -60,6 +61,11 @@ export const configValidationSchema = Joi.object({
   EMAIL_FROM_NAME: Joi.string().default('KhoshGolpo'),
   DOMAIN: Joi.string().hostname().required(),
   EMAIL_VERIFICATION_TOKEN_TTL: Joi.string().default('24h'),
+  EMAIL_VERIFICATION_OTP_LENGTH: Joi.number()
+    .integer()
+    .min(4)
+    .max(10)
+    .default(6),
 
   RATE_LIMIT_WINDOW_MS: Joi.number().default(60_000),
   RATE_LIMIT_MAX_REQUESTS: Joi.number().default(120),

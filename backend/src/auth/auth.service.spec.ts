@@ -72,6 +72,7 @@ describe('AuthService', () => {
     email: 'amina@example.com',
     handle: 'amina',
     displayName: 'Amina',
+    avatarUrl: null,
     passwordHash: 'hashed-valid-password',
     roles: ['member'],
     emailVerifiedAt: new Date('2024-01-02T00:00:00Z'),
@@ -177,6 +178,10 @@ describe('AuthService', () => {
       usersService.isEmailTaken.mockResolvedValue(false);
       usersService.isHandleTaken.mockResolvedValue(false);
       usersService.createUser.mockResolvedValue(baseUser);
+      emailVerificationService.sendEmailVerification.mockResolvedValue({
+        tokenId: 'verification-token-id',
+        expiresAt: new Date('2024-01-03T00:00:00Z'),
+      });
 
       const result = await service.register({
         email: 'Amina@example.com',
@@ -198,6 +203,8 @@ describe('AuthService', () => {
       expect(result).toEqual({
         user: baseUser,
         emailVerificationRequired: true,
+        verificationTokenId: 'verification-token-id',
+        verificationExpiresAt: new Date('2024-01-03T00:00:00Z'),
       });
     });
 
@@ -249,6 +256,32 @@ describe('AuthService', () => {
       await expect(
         service.login({ email: 'amina@example.com', password: 'invalid' }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('verifies OTP and returns auth tokens', async () => {
+      emailVerificationService.verifyEmail.mockResolvedValue(baseUser);
+      usersService.addRefreshToken.mockResolvedValue(undefined);
+      usersService.updateLastActive.mockResolvedValue(undefined);
+      jwtService.signAsync.mockResolvedValueOnce('verified-access-token');
+      jwtService.signAsync.mockResolvedValueOnce('verified-refresh-token');
+
+      const result = await service.verifyEmail('token-123', '123456');
+
+      expect(emailVerificationService.verifyEmail).toHaveBeenCalledWith(
+        'token-123',
+        '123456',
+      );
+      expect(usersService.addRefreshToken).toHaveBeenCalledTimes(1);
+      const [userIdArg, refreshPayload] =
+        usersService.addRefreshToken.mock.calls[0];
+      expect(userIdArg).toBe(baseUser.id);
+      expect(typeof refreshPayload.tokenId).toBe('string');
+      expect(refreshPayload.tokenHash).toBe('hashed-verified-refresh-token');
+      expect(result.user).toEqual(baseUser);
+      expect(result.tokens.accessToken).toBe('verified-access-token');
+      expect(result.tokens.refreshToken).toBe('verified-refresh-token');
     });
   });
 

@@ -123,6 +123,16 @@ export class RealtimeService {
       .emit('post.updated', { post: PostSchema.fromModel({ ...post }) });
   }
 
+  emitPostDeleted(threadId: string, postId: string): void {
+    if (!this.server) {
+      return;
+    }
+    const payload = { threadId, postId };
+    this.server
+      .to(this.buildThreadRoom(threadId))
+      .emit('post.deleted', payload);
+  }
+
   emitPostReaction(payload: PostReactionBroadcast): void {
     if (!this.server) {
       return;
@@ -167,6 +177,13 @@ export class RealtimeService {
           NotificationSchema.fromModel(notification),
         );
     });
+  }
+
+  emitThreadDeleted(threadId: string): void {
+    if (!this.server) {
+      return;
+    }
+    this.server.emit('thread.deleted', { threadId });
   }
 
   private buildUserRoom(userId: string): string {

@@ -600,6 +600,145 @@ export class ThreadsService {
     return updatedPost;
   }
 
+  async deletePost(
+    user: ActiveUser,
+    threadId: string,
+    postId: string,
+  ): Promise<void> {
+    const userId = user.userId;
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const post = await tx.post.findUnique({ where: { id: postId } });
+      if (!post || post.threadId !== threadId) {
+        throw new NotFoundException('Post not found.');
+      }
+      if (post.authorId !== userId) {
+        throw new ForbiddenException('You can only delete your own posts.');
+      }
+
+      const thread = await tx.thread.findUnique({ where: { id: threadId } });
+      if (!thread) {
+        throw new NotFoundException('Thread not found.');
+      }
+
+      await tx.postReaction.deleteMany({ where: { postId } });
+      await tx.postMention.deleteMany({ where: { postId } });
+
+      if (post.parentPostId) {
+        await tx.post.update({
+          where: { id: post.parentPostId },
+          data: {
+            repliesCount: { decrement: 1 },
+          },
+        });
+      }
+
+      await tx.post.delete({ where: { id: postId } });
+
+      const remainingPostsByUser = await tx.post.count({
+        where: { threadId, authorId: userId },
+      });
+
+      const participantIds = new Set(thread.participantIds ?? []);
+      let participantsChanged = false;
+      if (
+        remainingPostsByUser === 0 &&
+        participantIds.has(userId) &&
+        thread.authorId !== userId
+      ) {
+        participantIds.delete(userId);
+        participantsChanged = true;
+      }
+
+      const threadUpdate: Prisma.ThreadUpdateInput = {
+        postsCount: { decrement: 1 },
+        lastActivityAt: { set: now },
+      };
+
+      if (participantsChanged) {
+        threadUpdate.participantIds = { set: Array.from(participantIds) };
+        threadUpdate.participantsCount = { set: participantIds.size };
+      }
+
+      await tx.thread.update({
+        where: { id: threadId },
+        data: threadUpdate,
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          postsCount: { decrement: 1 },
+        },
+      });
+    });
+
+    this.realtime.emitPostDeleted(threadId, postId);
+    await this.invalidateThreadCaches(threadId);
+    await this.cache.delByPattern(this.threadListPattern());
+  }
+
+  async deleteThread(user: ActiveUser, threadId: string): Promise<void> {
+    const userId = user.userId;
+
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const thread = await tx.thread.findUnique({ where: { id: threadId } });
+      if (!thread) {
+        throw new NotFoundException('Thread not found.');
+      }
+      if (thread.authorId !== userId) {
+        throw new ForbiddenException('You can only delete your own threads.');
+      }
+
+      const posts = await tx.post.findMany({
+        where: { threadId },
+        select: { id: true, authorId: true },
+      });
+
+      const postIds = posts.map((entry) => entry.id);
+      const postsByAuthor = new Map<string, number>();
+      posts.forEach((entry) => {
+        postsByAuthor.set(
+          entry.authorId,
+          (postsByAuthor.get(entry.authorId) ?? 0) + 1,
+        );
+      });
+
+      if (postIds.length > 0) {
+        await tx.postReaction.deleteMany({
+          where: { postId: { in: postIds } },
+        });
+        await tx.postMention.deleteMany({
+          where: { postId: { in: postIds } },
+        });
+        await tx.post.deleteMany({ where: { threadId } });
+      }
+
+      await tx.thread.delete({ where: { id: threadId } });
+
+      for (const [authorId, count] of postsByAuthor.entries()) {
+        await tx.user.update({
+          where: { id: authorId },
+          data: {
+            postsCount: { decrement: count },
+          },
+        });
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          threadsCount: { decrement: 1 },
+        },
+      });
+    });
+
+    this.realtime.emitThreadDeleted(threadId);
+    await this.invalidateThreadCaches(threadId);
+    await this.cache.delByPattern(this.threadListPattern());
+  }
+
   async getThreadWithPosts(threadId: string, page = 1, limit = 20) {
     const cacheKey = this.buildThreadDetailCacheKey(threadId, page, limit);
     const cached = await this.cache.get<{

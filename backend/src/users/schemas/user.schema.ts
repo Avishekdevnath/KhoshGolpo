@@ -30,6 +30,15 @@ export class UserSchema {
   @IsString()
   displayName!: string;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'https://cdn.example.com/avatars/jane.png',
+  })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string | null;
+
   @ApiProperty({ type: [String], example: ['member'] })
   @IsArray()
   @IsString({ each: true })
@@ -111,6 +120,7 @@ export class UserSchema {
     schema.email = user.email;
     schema.handle = user.handle;
     schema.displayName = user.displayName;
+    schema.avatarUrl = user.avatarUrl ?? null;
     schema.roles = user.roles ?? [];
     schema.status = extendedUser.status ?? 'active';
     schema.bannedAt = extendedUser.bannedAt ?? undefined;

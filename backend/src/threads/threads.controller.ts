@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -12,6 +14,7 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -230,5 +233,34 @@ export class ThreadsController {
       postId,
     );
     return { post: PostSchema.fromModel({ ...post }) };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Delete one of your posts from a thread.' })
+  @ApiNoContentResponse({ description: 'Post deleted successfully.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Delete(':threadId/posts/:postId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deletePost(
+    @Param('threadId') threadId: string,
+    @Param('postId') postId: string,
+    @CurrentUser() user: ActiveUser,
+  ): Promise<void> {
+    await this.threadsService.deletePost(user, threadId, postId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Delete your own thread and all of its posts.' })
+  @ApiNoContentResponse({ description: 'Thread deleted successfully.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Delete(':threadId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteThread(
+    @Param('threadId') threadId: string,
+    @CurrentUser() user: ActiveUser,
+  ): Promise<void> {
+    await this.threadsService.deleteThread(user, threadId);
   }
 }

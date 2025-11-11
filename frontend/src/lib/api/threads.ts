@@ -1,5 +1,13 @@
 import { apiFetch } from '@/lib/api/client';
 
+export interface ThreadPreviewPost {
+  id: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Thread {
   id: string;
   title: string;
@@ -15,6 +23,7 @@ export interface Thread {
   participantIds: string[];
   createdAt: string;
   updatedAt: string;
+  firstPostPreview?: ThreadPreviewPost | null;
 }
 
 export interface Post {
@@ -124,6 +133,24 @@ export async function createPost(
   return apiFetch<{ post: Post }, CreatePostPayload>(`/threads/${threadId}/posts`, {
     method: 'POST',
     body: payload,
+    accessToken,
+  });
+}
+
+export async function deletePost(
+  threadId: string,
+  postId: string,
+  accessToken: string,
+): Promise<void> {
+  await apiFetch<void>(`/threads/${threadId}/posts/${postId}`, {
+    method: 'DELETE',
+    accessToken,
+  });
+}
+
+export async function deleteThread(threadId: string, accessToken: string): Promise<void> {
+  await apiFetch<void>(`/threads/${threadId}`, {
+    method: 'DELETE',
     accessToken,
   });
 }

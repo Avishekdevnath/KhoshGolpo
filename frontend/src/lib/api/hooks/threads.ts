@@ -11,6 +11,8 @@ import {
   ThreadWithPosts,
   createPost,
   createThread,
+  deletePost,
+  deleteThread,
   getThread,
   listThreads,
 } from '@/lib/api/threads';
@@ -92,6 +94,39 @@ export function useCreatePost(threadId: string | null) {
       return result;
     },
     [mutate, mutateCache, threadId],
+  );
+}
+
+export function useDeletePost(threadId: string | null) {
+  const mutate = useAuthorizedMutation<[string, string], Awaited<ReturnType<typeof deletePost>>>(
+    (accessToken, thread, post) => deletePost(thread, post, accessToken),
+  );
+  const { mutate: mutateCache } = useSWRConfig();
+
+  return useCallback(
+    async (postId: string) => {
+      if (!threadId) {
+        throw new Error('Thread id is required');
+      }
+      await mutate(threadId, postId);
+      await mutateCache((key) => Array.isArray(key) && key[0] === THREADS_KEY);
+    },
+    [mutate, mutateCache, threadId],
+  );
+}
+
+export function useDeleteThread() {
+  const mutate = useAuthorizedMutation<[string], Awaited<ReturnType<typeof deleteThread>>>(
+    (accessToken, threadId) => deleteThread(threadId, accessToken),
+  );
+  const { mutate: mutateCache } = useSWRConfig();
+
+  return useCallback(
+    async (threadId: string) => {
+      await mutate(threadId);
+      await mutateCache((key) => Array.isArray(key) && key[0] === THREADS_KEY);
+    },
+    [mutate, mutateCache],
   );
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { Menu, Moon, Search, Settings2, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +16,12 @@ type AppHeaderProps = {
 };
 
 export function AppHeader({ onMenuClick, onToggleTheme, theme }: AppHeaderProps) {
+  const router = useRouter();
   const isDark = theme === "dark";
+
+  const handleOpenSettings = () => {
+    router.push("/settings");
+  };
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl transition-colors dark:border-slate-800/60 dark:bg-slate-950/70">
@@ -35,7 +42,7 @@ export function AppHeader({ onMenuClick, onToggleTheme, theme }: AppHeaderProps)
             placeholder="Search threads, notes, or people"
             className="border-0 bg-transparent p-0 text-sm text-slate-600 placeholder:text-slate-400 focus-visible:ring-0 dark:text-slate-200"
           />
-          <span className="ml-auto hidden rounded-lg border border-slate-200/80 px-3 py-1 text-xs uppercase tracking-wide text-slate-500 transition-colors dark:border-slate-700 dark:text-slate-400 xl:inline-flex">
+          <span className="ml-auto hidden min-w-[88px] items-center justify-center rounded-lg border border-slate-200/80 px-4 py-1 text-xs uppercase tracking-wide text-slate-500 transition-colors dark:border-slate-700 dark:text-slate-400 xl:inline-flex">
             Ctrl + K
           </span>
         </div>
@@ -57,6 +64,7 @@ export function AppHeader({ onMenuClick, onToggleTheme, theme }: AppHeaderProps)
             className="text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white"
             title="Open settings"
             aria-label="Open settings"
+            onClick={handleOpenSettings}
           >
             <Settings2 className="size-5" />
           </Button>

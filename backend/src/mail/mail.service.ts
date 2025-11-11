@@ -10,10 +10,11 @@ interface SendMailOptions {
   html: string;
 }
 
-interface EmailVerificationPayload {
+interface EmailVerificationOtpPayload {
   email: string;
   displayName: string;
-  verificationUrl: string;
+  otp: string;
+  expiresInMinutes: number;
 }
 
 @Injectable()
@@ -32,12 +33,12 @@ export class MailService {
     this.fromAddress = `"${fromName}" <${user}>`;
   }
 
-  async sendEmailVerification(
-    payload: EmailVerificationPayload,
+  async sendEmailVerificationOtp(
+    payload: EmailVerificationOtpPayload,
   ): Promise<void> {
-    const subject = 'Verify your email address';
-    const text = this.renderEmailVerificationText(payload);
-    const html = this.renderEmailVerificationHtml(payload);
+    const subject = 'Your KhoshGolpo verification code';
+    const text = this.renderEmailVerificationOtpText(payload);
+    const html = this.renderEmailVerificationOtpHtml(payload);
 
     await this.sendMail({
       to: payload.email,
@@ -102,34 +103,34 @@ export class MailService {
     };
   }
 
-  private renderEmailVerificationText(
-    payload: EmailVerificationPayload,
+  private renderEmailVerificationOtpText(
+    payload: EmailVerificationOtpPayload,
   ): string {
     return [
       `Hello ${payload.displayName},`,
       '',
       'Thanks for signing up for KhoshGolpo!',
-      'Please verify your email address by clicking the link below:',
-      payload.verificationUrl,
+      'Use the verification code below to complete your registration:',
+      '',
+      payload.otp,
+      '',
+      `This code expires in ${payload.expiresInMinutes} minutes.`,
       '',
       'If you did not create this account, you can ignore this email.',
     ].join('\n');
   }
 
-  private renderEmailVerificationHtml(
-    payload: EmailVerificationPayload,
+  private renderEmailVerificationOtpHtml(
+    payload: EmailVerificationOtpPayload,
   ): string {
     return `
       <p>Hello ${payload.displayName},</p>
       <p>Thanks for signing up for <strong>KhoshGolpo</strong>!</p>
-      <p>Please verify your email address by clicking the button below:</p>
-      <p style="margin:24px 0;">
-        <a href="${payload.verificationUrl}" style="background-color:#2563eb;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;">
-          Verify Email
-        </a>
+      <p>Use the verification code below to complete your registration:</p>
+      <p style="margin:24px 0;font-size:24px;letter-spacing:4px;font-weight:bold;">
+        ${payload.otp}
       </p>
-      <p>If the button doesn’t work, copy and paste this URL into your browser:</p>
-      <p><a href="${payload.verificationUrl}">${payload.verificationUrl}</a></p>
+      <p>This code expires in ${payload.expiresInMinutes} minutes.</p>
       <p>If you did not create this account, you can ignore this email.</p>
     `;
   }

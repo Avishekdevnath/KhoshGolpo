@@ -31,8 +31,20 @@ export interface LoginPayload {
   password: string;
 }
 
-export async function register(payload: RegisterPayload): Promise<AuthResponse> {
-  return apiFetch<AuthResponse, RegisterPayload>('/auth/register', {
+export interface RegisterResponse {
+  emailVerificationRequired: boolean;
+  verificationTokenId: string;
+  verificationExpiresAt: string;
+  message?: string;
+}
+
+export interface VerifyEmailPayload {
+  tokenId: string;
+  otp: string;
+}
+
+export async function register(payload: RegisterPayload): Promise<RegisterResponse> {
+  return apiFetch<RegisterResponse, RegisterPayload>('/auth/register', {
     method: 'POST',
     body: payload,
   });
@@ -54,6 +66,13 @@ export async function refresh(): Promise<AuthResponse> {
 export async function logout(): Promise<void> {
   await apiFetch('/auth/logout', {
     method: 'POST',
+  });
+}
+
+export async function verifyEmail(payload: VerifyEmailPayload): Promise<AuthResponse> {
+  return apiFetch<AuthResponse, VerifyEmailPayload>('/auth/verify-email', {
+    method: 'POST',
+    body: payload,
   });
 }
 

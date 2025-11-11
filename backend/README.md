@@ -140,6 +140,7 @@ MAIL_HOST="smtp.example.com"
 MAIL_USER="example@example.com"
 MAIL_PASS="<smtp-password>"
 NOTIFICATION_WEBHOOK_URL="https://example.com/webhooks/notifications"
+NOTIFICATION_WEBHOOK_SECRET="<shared-secret-used-by-worker>"
 ```
 
 Optional:

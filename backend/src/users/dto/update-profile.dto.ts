@@ -5,6 +5,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  IsUrl,
 } from 'class-validator';
 
 const HANDLE_REGEX = /^[a-z0-9_.-]{3,20}$/i;
@@ -36,4 +37,14 @@ export class UpdateProfileDto {
       'Handle must be 3-20 characters using letters, numbers, underscores, dots or dashes',
   })
   handle?: string;
+
+  @ApiPropertyOptional({
+    description: 'Public avatar image URL.',
+    example: 'https://cdn.example.com/avatars/user123.png',
+  })
+  @IsOptional()
+  @IsString()
+  @IsUrl()
+  @MaxLength(512)
+  avatarUrl?: string;
 }

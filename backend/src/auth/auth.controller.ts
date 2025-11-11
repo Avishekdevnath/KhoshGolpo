@@ -5,7 +5,6 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -29,7 +28,7 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { ProfileDto } from './dto/profile.dto';
 import { LogoutResponseDto } from './dto/logout-response.dto';
 import { RegisterResponseDto } from './dto/register-response.dto';
-import { VerifyEmailQueryDto } from './dto/verify-email.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -44,11 +43,11 @@ export class AuthController {
   @ApiOperation({
     summary: 'Register a new user account.',
     description:
-      'Creates a new user and sends a verification email to confirm ownership of the address.',
+      'Creates a new user and sends a one-time passcode (OTP) to confirm ownership of the email address.',
   })
   @ApiCreatedResponse({
     description:
-      'User registered successfully. Verification email has been dispatched.',
+      'User registered successfully. Verification OTP has been dispatched.',
     type: RegisterResponseDto,
   })
   @ApiBadRequestResponse({
@@ -60,8 +59,10 @@ export class AuthController {
 
     return {
       emailVerificationRequired: result.emailVerificationRequired,
+      verificationTokenId: result.verificationTokenId,
+      verificationExpiresAt: result.verificationExpiresAt.toISOString(),
       message:
-        'Account created successfully. Please check your email to verify your address.',
+        'Account created successfully. Enter the verification code sent to your email to activate your account.',
     };
   }
 
@@ -170,27 +171,24 @@ export class AuthController {
   }
 
   @ApiOperation({
-    summary: 'Confirm email verification using the token sent via email.',
+    summary: 'Confirm email verification using the OTP sent via email.',
   })
   @ApiOkResponse({
     description: 'Email verified successfully. Returns authentication tokens.',
     type: AuthResponseDto,
   })
   @ApiBadRequestResponse({
-    description: 'Verification token is missing or malformed.',
+    description: 'Verification payload is missing or malformed.',
   })
   @ApiUnauthorizedResponse({
-    description: 'Verification token is invalid, expired, or already used.',
+    description: 'Verification OTP is invalid, expired, or already used.',
   })
-  @Get('verify-email')
+  @Post('verify-email')
   async verifyEmail(
-    @Query() query: VerifyEmailQueryDto,
+    @Body() body: VerifyEmailDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponseDto> {
-    const result = await this.authService.verifyEmail(
-      query.tokenId,
-      query.token,
-    );
+    const result = await this.authService.verifyEmail(body.tokenId, body.otp);
 
     this.authService.attachRefreshTokenCookie(
       res,

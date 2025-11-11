@@ -14,6 +14,8 @@ import type {
   LoginPayload,
   Profile,
   RegisterPayload,
+  RegisterResponse,
+  VerifyEmailPayload,
 } from '@/lib/api/auth';
 import {
   getProfile,
@@ -21,6 +23,7 @@ import {
   logout as logoutRequest,
   refresh as refreshRequest,
   register as registerRequest,
+  verifyEmail as verifyEmailRequest,
 } from '@/lib/api/auth';
 import { getErrorMessage } from '@/lib/utils/error';
 import { toast } from 'sonner';
@@ -33,7 +36,8 @@ interface AuthContextValue {
   accessToken: string | null;
   isActionPending: boolean;
   login: (payload: LoginPayload) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<RegisterResponse>;
+  verifyEmail: (payload: VerifyEmailPayload) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -172,11 +176,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsActionPending(true);
       try {
         const result = await registerRequest(payload);
-        applySession(result);
-        toast.success('Account created. Welcome aboard!');
+        toast.success(result.message ?? 'Account created. Check your email for a verification code.');
+        return result;
       } catch (error) {
-        applySession(null);
         const message = getErrorMessage(error, 'Unable to create account.');
+        toast.error(message);
+        throw error;
+      } finally {
+        setIsActionPending(false);
+      }
+    },
+    [],
+  );
+
+  const verifyEmail = useCallback(
+    async (payload: VerifyEmailPayload) => {
+      setIsActionPending(true);
+      try {
+        const result = await verifyEmailRequest(payload);
+        applySession(result);
+        toast.success('Email verified. Welcome aboard!');
+      } catch (error) {
+        const message = getErrorMessage(error, 'Unable to verify email.');
         toast.error(message);
         throw error;
       } finally {
@@ -224,10 +245,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isActionPending,
       login,
       register,
+      verifyEmail,
       logout,
       refreshProfile,
     }),
-    [status, user, accessToken, isActionPending, login, register, logout, refreshProfile],
+    [status, user, accessToken, isActionPending, login, register, verifyEmail, logout, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

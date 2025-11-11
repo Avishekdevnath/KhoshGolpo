@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, type FC } from "react";
+import { useMemo, useState, type FC } from "react";
 import { usePathname } from "next/navigation";
 import { Flame, LogOut, PanelLeftClose, PanelLeftOpen, PlusCircle, Settings2, X } from "lucide-react";
 
 import { navigationSections } from "@/config/navigation";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth/hooks";
-import { useHealth } from "@/lib/health/health-provider";
 import { useThreads } from "@/lib/api/hooks/threads";
 import { useNotifications } from "@/lib/api/hooks/notifications";
 import { useModerationPosts } from "@/lib/api/hooks/admin";
+import { Button } from "@/components/ui/button";
+import { CreateThreadModal } from "@/components/threads/create-thread-modal";
 
 type AppSidebarProps = {
   open: boolean;
@@ -24,7 +24,7 @@ type AppSidebarProps = {
 export const AppSidebar: FC<AppSidebarProps> = ({ open, onOpenChange, collapsed, onCollapsedChange }) => {
   const pathname = usePathname();
   const { user, logout, isActionPending } = useAuth();
-  const { status: healthStatus } = useHealth();
+  const [isCreateThreadOpen, setIsCreateThreadOpen] = useState(false);
   const threadsCountQuery = useMemo(() => ({ page: 1, limit: 1 }), []);
   const notificationsCountQuery = useMemo(() => ({ page: 1, limit: 1, unreadOnly: true }), []);
   const moderationCountQuery = useMemo(() => ({ page: 1, limit: 1, state: "pending" as const }), []);
@@ -59,6 +59,11 @@ export const AppSidebar: FC<AppSidebarProps> = ({ open, onOpenChange, collapsed,
     void logout();
   };
 
+  const handleCreateThreadClick = () => {
+    setIsCreateThreadOpen(true);
+    onOpenChange(false);
+  };
+
   const roles = user?.roles ?? [];
   const isModerator = roles.includes("moderator");
   const isAdmin = roles.includes("admin");
@@ -74,7 +79,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({ open, onOpenChange, collapsed,
     <>
       {open && (
         <div
-          className="fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 cursor-pointer bg-slate-950/70 backdrop-blur-sm lg:hidden"
           aria-hidden="true"
           onClick={() => onOpenChange(false)}
         />
@@ -135,47 +140,13 @@ export const AppSidebar: FC<AppSidebarProps> = ({ open, onOpenChange, collapsed,
               "inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800/80 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-white",
               collapsed && "gap-0 px-0",
             )}
-            onClick={() => onOpenChange(false)}
+            onClick={handleCreateThreadClick}
             title="Create a new warm thread"
           >
             <PlusCircle className="size-5" />
             {!collapsed && <span>New warm thread</span>}
           </Button>
 
-          <div
-            className={cn(
-              "flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium transition",
-              collapsed ? "flex-col gap-1 text-center" : "gap-3",
-              healthStatus === "healthy" &&
-                "border-emerald-400/50 bg-emerald-500/5 text-emerald-500 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300",
-              healthStatus === "degraded" &&
-                "border-amber-400/60 bg-amber-500/5 text-amber-500 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300",
-              healthStatus === "down" &&
-                "border-red-500/50 bg-red-500/10 text-red-500 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300",
-              healthStatus === "idle" &&
-                "border-slate-300/70 bg-slate-100/60 text-slate-500 dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-400",
-            )}
-            role="status"
-          >
-            <span>{collapsed ? "API" : "Backend health"}</span>
-            <span className="flex items-center gap-1">
-              <span
-                className={cn(
-                  "inline-flex size-2 rounded-full",
-                  healthStatus === "healthy" && "bg-emerald-500",
-                  healthStatus === "degraded" && "bg-amber-400",
-                  healthStatus === "down" && "bg-red-500",
-                  healthStatus === "idle" && "bg-slate-400",
-                )}
-              />
-              <span className="uppercase tracking-[0.18em]">
-                {healthStatus === "healthy" && "Online"}
-                {healthStatus === "degraded" && "Slow"}
-                {healthStatus === "down" && "Offline"}
-                {healthStatus === "idle" && "Checking"}
-              </span>
-            </span>
-          </div>
         </div>
 
         <nav className="scrollbar-thin mt-6 flex-1 space-y-8 overflow-y-auto pb-6 pr-1 min-h-0">
@@ -265,6 +236,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({ open, onOpenChange, collapsed,
           </div>
         </div>
       </aside>
+      <CreateThreadModal isOpen={isCreateThreadOpen} onClose={() => setIsCreateThreadOpen(false)} />
     </>
   );
 };

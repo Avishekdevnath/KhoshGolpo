@@ -38,6 +38,8 @@ interface AuthResult {
 interface RegistrationResult {
   user: User;
   emailVerificationRequired: boolean;
+  verificationTokenId: string;
+  verificationExpiresAt: Date;
 }
 
 type UserWithEmailVerification = User & {
@@ -79,11 +81,14 @@ export class AuthService {
       displayName: payload.displayName?.trim() || handle,
     });
 
-    await this.emailVerificationService.sendEmailVerification(user);
+    const { tokenId, expiresAt } =
+      await this.emailVerificationService.sendEmailVerification(user);
 
     return {
       user,
       emailVerificationRequired: true,
+      verificationTokenId: tokenId,
+      verificationExpiresAt: expiresAt,
     };
   }
 
@@ -172,11 +177,8 @@ export class AuthService {
     return ProfileDto.fromUser(user);
   }
 
-  async verifyEmail(tokenId: string, token: string): Promise<AuthResult> {
-    const user = await this.emailVerificationService.verifyEmail(
-      tokenId,
-      token,
-    );
+  async verifyEmail(tokenId: string, otp: string): Promise<AuthResult> {
+    const user = await this.emailVerificationService.verifyEmail(tokenId, otp);
     const tokens = await this.issueTokens(user);
     await this.persistRefreshToken(user.id, tokens);
     await this.usersService.updateLastActive(user.id, new Date());

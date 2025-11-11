@@ -88,6 +88,7 @@ export class NotificationsWorkerService
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...this.buildSecretHeader(),
         },
         body: JSON.stringify({
           event: job.data.event,
@@ -113,6 +114,19 @@ export class NotificationsWorkerService
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private buildSecretHeader(): Record<string, string> {
+    const secret = this.configService
+      .get<string>('NOTIFICATION_WEBHOOK_SECRET')
+      ?.trim();
+    if (!secret) {
+      return {};
+    }
+
+    return {
+      'x-webhook-secret': secret,
+    };
   }
 
   private getWebhookUrl(): string | undefined {

@@ -9,8 +9,22 @@ export class RegisterResponseDto {
   emailVerificationRequired!: boolean;
 
   @ApiProperty({
+    example: '6f8f5f92-0a2a-4b96-8ace-b93a9960c9b9',
+    description:
+      'Identifier to supply alongside the OTP when confirming verification.',
+  })
+  verificationTokenId!: string;
+
+  @ApiProperty({
+    example: '2025-01-01T12:00:00.000Z',
+    description:
+      'Timestamp (ISO 8601) indicating when the OTP expires and can no longer be used.',
+  })
+  verificationExpiresAt!: string;
+
+  @ApiProperty({
     example:
-      'Account created successfully. Please check your inbox to verify your email address.',
+      'Account created successfully. Enter the verification code sent to your email to activate your account.',
   })
   message!: string;
 }

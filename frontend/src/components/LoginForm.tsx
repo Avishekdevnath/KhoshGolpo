@@ -115,7 +115,7 @@ export function LoginForm() {
           <button
             type="button"
             onClick={togglePasswordVisibility}
-            className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md p-2 text-emerald-300 transition hover:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
+            className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md p-2 text-emerald-300 transition hover:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40 cursor-pointer"
             aria-pressed={showPassword}
             aria-label={showPassword ? "Hide password" : "Show password"}
           >

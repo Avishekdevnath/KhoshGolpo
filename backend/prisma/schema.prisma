@@ -14,6 +14,7 @@ model User {
   passwordHash  String
   handle        String         @unique
   displayName   String
+  avatarUrl     String?
   roles         String[]       @default(["member"])
   emailVerifiedAt DateTime?
   lastActiveAt  DateTime?      @map("lastActiveAt")
@@ -182,7 +183,7 @@ model Notification {
 model EmailVerificationToken {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   tokenId    String   @unique
-  tokenHash  String
+  otpHash    String
   userId     String   @db.ObjectId
   expiresAt  DateTime
   consumedAt DateTime?

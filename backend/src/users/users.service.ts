@@ -136,7 +136,7 @@ export class UsersService {
 
   async updateProfile(
     userId: string,
-    payload: Partial<Pick<User, 'displayName' | 'handle'>>,
+    payload: Partial<Pick<User, 'displayName' | 'handle' | 'avatarUrl'>>,
   ): Promise<User | null> {
     const data: Prisma.UserUpdateInput = {};
     if (payload.displayName !== undefined) {
@@ -151,6 +151,14 @@ export class UsersService {
         throw new ConflictException('Handle is already taken.');
       }
       data.handle = normalizedHandle;
+    }
+    if (payload.avatarUrl !== undefined) {
+      if (typeof payload.avatarUrl === 'string') {
+        const trimmedAvatar = payload.avatarUrl.trim();
+        data.avatarUrl = trimmedAvatar.length > 0 ? trimmedAvatar : null;
+      } else {
+        data.avatarUrl = null;
+      }
     }
     if (Object.keys(data).length === 0) {
       return this.findById(userId);
@@ -172,6 +180,37 @@ export class UsersService {
         handle: { in: normalized },
       },
     });
+  }
+
+  async searchUsers(
+    query: string,
+    limit = 10,
+  ): Promise<Array<Pick<User, 'id' | 'handle' | 'displayName' | 'avatarUrl'>>> {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    const sanitizedLimit = Math.min(Math.max(limit, 1), 20);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        OR: [
+          { handle: { startsWith: normalizedQuery } },
+          { displayName: { startsWith: normalizedQuery, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: [{ handle: 'asc' }, { displayName: 'asc' }],
+      take: sanitizedLimit,
+      select: {
+        id: true,
+        handle: true,
+        displayName: true,
+        avatarUrl: true,
+      },
+    });
+
+    return users;
   }
 
   async removeInactiveRefreshTokens(

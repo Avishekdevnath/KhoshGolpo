@@ -89,8 +89,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <AppHeader onMenuClick={() => setSidebarOpen(true)} onToggleTheme={handleToggleTheme} theme={theme} />
-          <main className="flex-1 px-4 pb-10 pt-6 sm:px-6 lg:px-10">
-            <Scrollbar className="h-full">
+          <main className="flex flex-1 overflow-hidden px-4 pb-10 pt-6 sm:px-6 lg:px-10">
+            <Scrollbar className="h-full w-full overflow-y-auto">
               <div className="mx-auto w-full max-w-6xl space-y-6">{children}</div>
             </Scrollbar>
           </main>

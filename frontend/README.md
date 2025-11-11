@@ -110,8 +110,10 @@ frontend/
 ## Feature Surface
 
 - **Public Landing Experience** – Hero, features, community testimonials, FAQs, and CTA flows to showcase AI-driven moderation.
-- **Authentication** – Register, login, forgot-password flows using `react-hook-form` with inline validation and auth guards.
-- **Thread Workspace** – Thread list, detail view, and creation modal integrated with backend APIs. Prepared for realtime updates and moderation status badges.
+- **Authentication** – Two-step registration with email OTP verification, plus login and forgot-password flows using `react-hook-form` with inline validation and auth guards.
+  - Signup now returns a `verificationTokenId` and expiry; the UI prompts for the emailed code and calls `POST /auth/verify-email`.
+  - Until a resend endpoint exists, users can restart signup to receive another code.
+- **Thread Workspace** – Thread list, detail view, and creation modal integrated with backend APIs. Main content scrolls within the workspace, IDs are humanised, both themes are polished, and members can reply inline to individual posts with nested threading. Members can delete their own posts, owners can delete entire threads (with cache-aware refresh), and the global button spinner overlay keeps icon+label spacing intact across nav/sidebar controls.
 - **Notification Center** – Event list with unread states and mark-as-read actions (REST integrated via backend endpoints).
 - **Admin Console** – Users, moderation, and security dashboards under `/app/admin` for privileged roles.
 - **Profile & Dashboard** – Personal settings, overview metrics, and quick links under `/app/profile` and `/app/dashboard`.
@@ -174,7 +176,7 @@ Development tips:
 | `npm run lint:fix` | Auto-fix lint issues where possible. |
 | `npm run format` | Format source with Prettier. |
 | `npm run format:check` | Verify formatting without applying changes. |
-| `npm run test` | Vitest + Testing Library smoke tests. |
+| `npm run test` | Vitest placeholder suite (`--passWithNoTests`) until new specs land. |
 
 ---
 
@@ -182,9 +184,9 @@ Development tips:
 
 - **ESLint** enforces coding standards (React, Next.js, Tailwind plugins).
 - **TypeScript** runs in strict mode; type errors fail builds.
-- **Vitest + Testing Library** provide component smoke tests (see `src/components/**/__tests__`). Run with `npm run test`.
+- **Vitest** is wired for future unit tests; `npm run test` currently exits cleanly with `--passWithNoTests`.
 - **Manual Testing**: Use Next.js preview URL or `npm run dev` for interactive QA.
-- Future enhancements will expand automated coverage to authenticated flows and thread interactions.
+- Future enhancements will expand automated coverage to the OTP verification flow, authenticated threads, and admin tooling.
 
 GitHub Actions (`.github/workflows/frontend-ci.yml`) runs lint, build, and tests on every push/PR to the frontend workspace and optionally hits a Vercel deploy hook when `VERCEL_DEPLOY_HOOK_URL` is configured.
 

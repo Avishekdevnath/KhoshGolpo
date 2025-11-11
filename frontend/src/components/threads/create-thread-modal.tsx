@@ -75,11 +75,11 @@ export function CreateThreadModal({ isOpen, onClose }: CreateThreadModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-black/50 p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+        className="w-full max-w-2xl cursor-default rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
