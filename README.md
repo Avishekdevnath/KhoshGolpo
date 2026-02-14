@@ -1,6 +1,6 @@
 # KhoshGolpo Monorepo
 
-KhoshGolpo is a human-first discussion platform that blends AI support with thoughtful moderation tools so communities stay warm, safe, and productive. This repository hosts the full stack: a NestJS backend and a Next.js frontend managed as independent workspaces within a single monorepo.
+KhoshGolpo is a human-first discussion platform that blends AI support with thoughtful moderation tools so communities stay warm, safe, and productive. This repository hosts the full stack: a NestJS backend and a Next.js frontend managed as independent workspaces within a single monorepo project.
 
 ---
 
